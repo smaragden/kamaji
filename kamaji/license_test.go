@@ -59,7 +59,9 @@ func f(n int, lm *kamaji.LicenseManager, t *testing.T, wg *sync.WaitGroup) {
 	for {
 		_, ok := lm.Borrow("arnold")
 		if ok {
+			//t.Logf("goroutine[%d] borrowed 1 license.", n)
 			_, _ = lm.Return("arnold")
+			//t.Logf("goroutine[%d] returned 1 license.", n)
 			break
 		} else {
 			time.Sleep(time.Millisecond)
@@ -69,8 +71,8 @@ func f(n int, lm *kamaji.LicenseManager, t *testing.T, wg *sync.WaitGroup) {
 }
 
 func TestConcurrency(t *testing.T) {
-	licenses := 1000
-	gouroutines := 1000000
+	licenses := 100
+	gouroutines := 100000
 	lm := kamaji.NewLicenseManager()
 	_ = lm.AddApplication("arnold", licenses)
 	var wg sync.WaitGroup

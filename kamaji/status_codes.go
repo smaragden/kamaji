@@ -16,7 +16,7 @@ const (
 	ARCHIVING
 )
 
-var statuses = [...]string{
+var statusStrings = [...]string{
 	"UNKNOWN",
 	"CREATING",
 	"IDLE",
@@ -29,6 +29,23 @@ var statuses = [...]string{
 	"ARCHIVING",
 }
 
+var stringToStatus = map[string]Status{
+	"UNKNOWN":   UNKNOWN,
+	"CREATING":  CREATING,
+	"IDLE":      IDLE,
+	"RUNNING":   RUNNING,
+	"STOPPING":  STOPPING,
+	"STOPPED":   STOPPED,
+	"PAUSED":    PAUSED,
+	"DONE":      DONE,
+	"ERROR":     ERROR,
+	"ARCHIVING": ARCHIVING,
+}
+
 func (js Status) String() string {
-	return statuses[js]
+	return statusStrings[js]
+}
+
+func StatusFromString(status string) Status {
+	return stringToStatus[status]
 }

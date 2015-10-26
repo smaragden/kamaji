@@ -2,9 +2,11 @@ package kamaji
 
 import (
 	"fmt"
+	"sync"
 )
 
 type Application struct {
+	sync.RWMutex
 	name      string
 	count     int
 	available int
@@ -57,7 +59,10 @@ func (lm LicenseManager) AddApplication(name string, count int) int {
 func (lm LicenseManager) Borrow(name string) (int, bool) {
 	app, ok := lm.Applications[name]
 	if ok {
-		return app.Borrow()
+		app.Lock()
+		n, err := app.Borrow()
+		app.Unlock()
+		return n, err
 	}
 	return 0, false
 }
@@ -65,7 +70,10 @@ func (lm LicenseManager) Borrow(name string) (int, bool) {
 func (lm LicenseManager) Return(name string) (int, bool) {
 	app, ok := lm.Applications[name]
 	if ok {
-		return app.Return()
+		app.Lock()
+		n, err := app.Return()
+		app.Unlock()
+		return n, err
 	}
 	return 0, false
 }
@@ -81,11 +89,10 @@ func (lm LicenseManager) Status(name string) Application {
 func (lm LicenseManager) Store() bool {
 	db := NewDatabase()
 	for name, app := range lm.Applications {
-		err := db.Client.Set(name, app.available, 0).Err()
+		_, err := db.Client.Do("SET", name, app.available)
 		if err != nil {
 			panic(err)
 		}
-
 	}
 	return true
 }

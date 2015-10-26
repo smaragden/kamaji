@@ -1,12 +1,12 @@
 package kamaji
 
 import (
-	"gopkg.in/redis.v3"
+	"github.com/garyburd/redigo/redis"
 	"sync"
 )
 
 type Database struct {
-	Client *redis.Client
+	Client redis.Conn
 }
 
 var _initCtx sync.Once
@@ -18,10 +18,10 @@ func NewDatabase() *Database {
 }
 
 func (db *Database) Connect(Addr string) *Database {
-	db.Client = redis.NewClient(&redis.Options{
-		Addr:     Addr,
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	c, err := redis.Dial("tcp", Addr)
+	if err == nil {
+		db.Client = c
+	}
+
 	return db
 }

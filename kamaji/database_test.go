@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDatase(t *testing.T) {
+func TestDatabase(t *testing.T) {
 	db := kamaji.NewDatabase()
 	db.Connect("localhost:6379")
 	lm := kamaji.NewLicenseManager()

@@ -1,6 +1,7 @@
 package kamaji_test
 
 import (
+	"github.com/garyburd/redigo/redis"
 	"github.com/smaragden/kamaji/kamaji"
 	//"math/rand"
 	"fmt"
@@ -30,7 +31,21 @@ func TestJobCreation(t *testing.T) {
 	for i := 0; i < count; i++ {
 		job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
 		t.Logf("Job: %q, %q, %s, %d, %s", job.Name, job.ID, job.Status, job.Status, job.GetCreated())
+		_ = job.Store()
 	}
+	db := kamaji.NewDatabase()
+	db.Connect("localhost:6379")
+	var jobs []struct {
+		Name string
+	}
+	values, err := redis.Values(db.Client.Do("SORT", "jobs", "BY", "Name", "GET", "job:*->Name"))
+	if err != nil {
+		t.Error(err)
+	}
+	if err := redis.ScanSlice(values, &jobs); err != nil {
+		t.Error(err)
+	}
+	t.Logf("%v", jobs)
 }
 
 func TestJobTaskCommandCreation(t *testing.T) {

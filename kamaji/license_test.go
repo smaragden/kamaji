@@ -83,3 +83,14 @@ func TestConcurrency(t *testing.T) {
 	wg.Wait()
 	t.Logf("FINISHED! | %d goroutines | %d licenses | %+v", gouroutines, licenses, lm.Status("arnold"))
 }
+
+func TestLicenseDatabase(t *testing.T) {
+	lm := kamaji.NewLicenseManager()
+	_ = lm.AddApplication("arnold", 100)
+	_ = lm.AddApplication("maya", 100)
+	_ = lm.AddApplication("nuke", 100)
+	_ = lm.AddApplication("houdini", 100)
+	_ = lm.AddApplication("yeti", 100)
+	lm.Store()
+	//t.Logf("FINISHED! | %d goroutines | %d licenses | %+v", gouroutines, licenses, lm.Status("arnold"))
+}

@@ -74,3 +74,17 @@ func (j Job) ChangeStatus(status Status) bool {
 func (j Job) GetCreated() time.Time {
 	return j.created
 }
+
+func (j Job) Store() bool {
+	db := NewDatabase()
+	if _, err := db.Client.Do("HMSET", fmt.Sprintf("job:%s", j.ID),
+		"Name", j.Name,
+		"Status", j.Status.String(),
+		"created", j.created.String()); err != nil {
+		panic(err)
+	}
+	if _, err := db.Client.Do("LPUSH", "jobs", j.ID); err != nil {
+		panic(err)
+	}
+	return true
+}

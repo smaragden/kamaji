@@ -1,6 +1,7 @@
 package kamaji
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 )
@@ -46,6 +47,18 @@ func NewLicenseManager() *LicenseManager {
 	return lm
 }
 
+func (lm LicenseManager) lkey() string {
+	return "licenses"
+}
+
+func (lm LicenseManager) akey(app *Application) string {
+	var buffer bytes.Buffer
+	buffer.WriteString(lm.lkey())
+	buffer.WriteString(":")
+	buffer.WriteString(app.name)
+	return buffer.String()
+}
+
 func (lm LicenseManager) AddApplication(name string, count int) int {
 	_, ok := lm.Applications[name]
 	if ok {
@@ -88,11 +101,24 @@ func (lm LicenseManager) Status(name string) Application {
 
 func (lm LicenseManager) Store() bool {
 	db := NewDatabase()
-	for name, app := range lm.Applications {
-		_, err := db.Client.Do("SET", name, app.available)
+	for _, app := range lm.Applications {
+		_, err := db.Client.Do("HSET", lm.akey(app), "count", app.count)
 		if err != nil {
 			panic(err)
 		}
 	}
 	return true
 }
+
+/*
+func (lm LicenseManager) Store() bool {
+	db := NewDatabase()
+	for _, app := range lm.Applications {
+		_, err := db.Client.Do("SADD", lm.akey(app), app.count)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return true
+}
+*/

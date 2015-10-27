@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+//interface Database
 type Database struct {
 	Client redis.Conn
 }

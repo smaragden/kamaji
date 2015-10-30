@@ -1,8 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"bufio"
 	"github.com/smaragden/kamaji/kamaji"
+	"net"
 )
 
 func main() {

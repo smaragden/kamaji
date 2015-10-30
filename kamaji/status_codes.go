@@ -14,6 +14,13 @@ const (
 	DONE
 	ERROR
 	ARCHIVING
+	ONLINE
+	OFFLINE
+	AVAILABLE
+	WORKING
+	DISCONNECTED
+	READY
+	ASSIGNING
 )
 
 var statusStrings = [...]string{
@@ -27,19 +34,33 @@ var statusStrings = [...]string{
 	"DONE",
 	"ERROR",
 	"ARCHIVING",
+	"ONLINE",
+	"OFFLINE",
+	"AVAILABLE",
+	"WORKING",
+	"DISCONNECTED",
+	"READY",
+	"ASSIGNING",
 }
 
 var stringToStatus = map[string]Status{
-	"UNKNOWN":   UNKNOWN,
-	"CREATING":  CREATING,
-	"IDLE":      IDLE,
-	"RUNNING":   RUNNING,
-	"STOPPING":  STOPPING,
-	"STOPPED":   STOPPED,
-	"PAUSED":    PAUSED,
-	"DONE":      DONE,
-	"ERROR":     ERROR,
-	"ARCHIVING": ARCHIVING,
+	"UNKNOWN":      UNKNOWN,
+	"CREATING":     CREATING,
+	"IDLE":         IDLE,
+	"RUNNING":      RUNNING,
+	"STOPPING":     STOPPING,
+	"STOPPED":      STOPPED,
+	"PAUSED":       PAUSED,
+	"DONE":         DONE,
+	"ERROR":        ERROR,
+	"ARCHIVING":    ARCHIVING,
+	"ONLINE":       ONLINE,
+	"OFFLINE":      OFFLINE,
+	"AVAILABLE":    AVAILABLE,
+	"WORKING":      WORKING,
+	"DISCONNECTED": DISCONNECTED,
+	"READY":        READY,
+	"ASSIGNING":    ASSIGNING,
 }
 
 func (js Status) String() string {

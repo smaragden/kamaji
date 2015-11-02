@@ -1,0 +1,42 @@
+package kamaji;
+
+message KamajiMessage {
+	enum ACTION {
+		STATUS_UPDATE = 1;
+		ASSIGN = 2;
+		QUERY = 3;
+	}	
+	enum ENTITY {
+		CLIENT 	= 11;
+		JOB 	= 12;
+		TASK    = 13;
+		COMMAND = 14;
+	}
+  required ACTION action = 1 [default=STATUS_UPDATE];
+  required ENTITY entity = 2 [default=CLIENT];
+  optional string id = 3;
+  repeated ClientItem messageitems = 4;
+  repeated CommandItem commanditems = 5;
+  optional group StatusUpdate = 6 {
+  	required int32 destination = 7;
+  }
+
+  optional group ClientStats = 8 {
+    required string hostname = 9;
+  }
+  optional group CommandLog = 10 {
+    required string logline = 11;
+  }
+  optional group Command = 12 {
+  	required string ID = 13;	
+  }
+  message ClientItem {
+    required string id = 14;
+    optional int32 state = 15;
+  }
+  message CommandItem {
+    required string name = 16;
+    required string id = 17;
+    optional int32 state = 18;
+  }
+}

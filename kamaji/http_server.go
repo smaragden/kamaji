@@ -16,13 +16,13 @@ type ClientList struct {
 
 var ClientListInst ClientList
 
-func updateClients(cm *ClientManager) {
+func updateClients(nm *NodeManager) {
 	for {
 		var clients []string
 		index := 0
-		for p, v := range cm.itemToPool {
-			client := p.(*Client)
-			clientStr := fmt.Sprintf("<li>Client[%d]: %s, %s</li>", index, client.ID.String(), v.Name)
+		for p, v := range nm.itemToPool {
+			node := p.(*Node)
+			clientStr := fmt.Sprintf("<li>Client[%d]: %s, %s</li>", index, node.ID.String(), v.Name)
 			clients = append(clients, clientStr)
 			index++
 		}
@@ -34,7 +34,7 @@ func updateClients(cm *ClientManager) {
 
 }
 
-func HttpServe(cm *ClientManager) {
+func HttpServe(cm *NodeManager) {
 	go updateClients(cm)
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", Index)

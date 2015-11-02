@@ -97,7 +97,7 @@ func (pm *PoolManager) CreatePools(pools []string) []*Pool {
 }
 
 // Move an item from one pool to another.
-func (pm *PoolManager) MoveClientToPool(item interface{}, pool string) error {
+func (pm *PoolManager) MoveItemToPool(item interface{}, pool string) error {
 	current_pool := pm.getCurrentPool(item)
 	if current_pool != nil {
 		current_pool.Remove(item)

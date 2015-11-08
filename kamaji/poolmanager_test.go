@@ -19,7 +19,7 @@ func NewClientManager(name string, address string, port int) *ClientManager {
 	cm.PoolManager = kamaji.NewPoolManager(name)
 	cm.Addr = address
 	cm.Port = port
-	cm.CreatePools([]string{kamaji.OFFLINE.String(), kamaji.ONLINE.String(), kamaji.AVAILABLE.String(), kamaji.WORKING.String()})
+	cm.CreatePools([]string{kamaji.OFFLINE.String(), kamaji.ONLINE.String(), kamaji.READY.String(), kamaji.WORKING.String()})
 	return cm
 }
 
@@ -38,7 +38,7 @@ func (t *Test) IsEqual(other *Test) bool {
 
 ////////////////////////////////////
 func TestPoolManager(t *testing.T) {
-	pool_manager := kamaji.NewClientManager("TestPoolManager", "test", 1234)
+	pool_manager := NewClientManager("TestPoolManager", "test", 1234)
 	fmt.Printf("%s %+v %T\n%s %+v %T\n", pool_manager.Name, pool_manager, pool_manager, pool_manager.PoolManager.Name, pool_manager.PoolManager, pool_manager)
 	fmt.Printf("Pools: %+v\n", pool_manager.Pools)
 	conn, err := net.Dial("tcp", ":3000")
@@ -46,7 +46,7 @@ func TestPoolManager(t *testing.T) {
 		fmt.Println(err)
 	}
 	test := kamaji.NewClient(conn)
-	pool_manager.MoveClientToPool(test, "AVAILABLE")
+	pool_manager.MoveItemToPool(test, "AVAILABLE")
 	for i, pool := range pool_manager.Pools {
 		fmt.Printf("%q, %+v\n", i, pool)
 		for j, item := range pool.Items {
@@ -54,7 +54,7 @@ func TestPoolManager(t *testing.T) {
 		}
 	}
 
-	pool_manager.MoveClientToPool(test, "WORKING")
+	pool_manager.MoveItemToPool(test, "WORKING")
 	for i, pool := range pool_manager.Pools {
 		fmt.Printf("%q, %+v\n", i, pool)
 		for j, item := range pool.Items {

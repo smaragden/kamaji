@@ -91,6 +91,5 @@ func TestLicenseDatabase(t *testing.T) {
 	_ = lm.AddApplication("nuke", 100)
 	_ = lm.AddApplication("houdini", 100)
 	_ = lm.AddApplication("yeti", 100)
-	lm.Store()
 	//t.Logf("FINISHED! | %d goroutines | %d licenses | %+v", gouroutines, licenses, lm.Status("arnold"))
 }

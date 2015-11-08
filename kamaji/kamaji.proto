@@ -5,7 +5,7 @@ message KamajiMessage {
 		STATUS_UPDATE = 1;
 		ASSIGN = 2;
 		QUERY = 3;
-	}	
+	}
 	enum ENTITY {
 		NODE 	= 11;
 		JOB 	= 12;
@@ -16,27 +16,39 @@ message KamajiMessage {
   required ENTITY entity = 2 [default=NODE];
   optional string id = 3;
   repeated NodeItem messageitems = 4;
-  repeated CommandItem commanditems = 5;
-  optional group StatusUpdate = 6 {
-  	required int32 destination = 7;
+  repeated JobItem jobitems = 5;
+  repeated TaskItem taskitems = 6;
+  repeated CommandItem commanditems = 7;
+  optional group StatusUpdate = 8 {
+  	required int32 destination = 9;
   }
 
-  optional group NodeStats = 8 {
-    required string hostname = 9;
+  optional group NodeStats = 10 {
+    required string hostname = 11;
   }
-  optional group CommandLog = 10 {
-    required string logline = 11;
+  optional group CommandLog = 12 {
+    required string logline = 13;
   }
-  optional group Command = 12 {
-  	required string ID = 13;	
+  optional group Command = 14 {
+  	required string ID = 15;
   }
   message NodeItem {
-    required string id = 14;
-    optional int32 state = 15;
+    required string id = 16;
+    optional int32 state = 17;
+  }
+  message JobItem {
+    required string name = 18;
+    required string id = 19;
+    optional int32 state = 20;
+  }
+  message TaskItem {
+    required string name = 21;
+    required string id = 22;
+    optional int32 state = 23;
   }
   message CommandItem {
-    required string name = 16;
-    required string id = 17;
-    optional int32 state = 18;
+    required string name = 24;
+    required string id = 25;
+    optional int32 state = 26;
   }
 }

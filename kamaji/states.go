@@ -6,32 +6,32 @@ type State int
 const (
 	// General
 	UNKNOWN State = 0
-	ERROR   State = 10
-	READY   State = 11
-	WORKING State = 12
 
-	// Tasks
-	PAUSED  State = 20
-	STOPPED State = 21
-	BLOCKED State = 22
-	DONE    State = 23
 	// Tasks Intermidates
-	CREATING  State = 25
-	ASSIGNING State = 26
-	STOPPING  State = 27
-	DELETING  State = 28
+	CREATING  State = 20
+	ASSIGNING State = 21
+	STOPPING  State = 22
+	DELETING  State = 23
+	// Tasks
+	PAUSED  State = 25
+	STOPPED State = 26
+	BLOCKED State = 27
+	DONE    State = 28
 
-	// Client
-	OFFLINE State = 30
-	ONLINE  State = 31
-	SERVICE State = 32
-	// Client Intermediates
-	DISCONNECTING State = 35
+	// Node Intermediates
+	DISCONNECTING State = 30
+	// Node
+	OFFLINE State = 35
+	ONLINE  State = 36
+	SERVICE State = 37
+
+	READY   State = 80
+	WORKING State = 90
+	ERROR   State = 100
 )
 
 var StateToStrings = map[State]string{
 	UNKNOWN:       "UNKNOWN",
-	ERROR:         "ERROR",
 	READY:         "READY",
 	WORKING:       "WORKING",
 	PAUSED:        "PAUSED",
@@ -46,11 +46,11 @@ var StateToStrings = map[State]string{
 	ONLINE:        "ONLINE",
 	SERVICE:       "SERVICE",
 	DISCONNECTING: "DISCONNECTING",
+	ERROR:         "ERROR",
 }
 
 var stringToState = map[string]State{
 	"UNKNOWN":       UNKNOWN,
-	"ERROR":         ERROR,
 	"READY":         READY,
 	"WORKING":       WORKING,
 	"PAUSED":        PAUSED,
@@ -65,6 +65,7 @@ var stringToState = map[string]State{
 	"ONLINE":        ONLINE,
 	"SERVICE":       SERVICE,
 	"DISCONNECTING": DISCONNECTING,
+	"ERROR":         ERROR,
 }
 
 func (js State) String() string {

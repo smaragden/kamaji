@@ -29,13 +29,14 @@ func NewDispatcher(lm *LicenseManager, nm *NodeManager, tm *TaskManager) *Dispat
 }
 
 func (d *Dispatcher) Start() {
-	go HttpServe(d.nm)
 	for {
-		node := d.nm.getAvailableNode() // Create a blocking channel
+		log.WithField("module", "dispatcher").Debug("Waiting for node")
+		node := <-d.nm.NextNode
 		if node == nil {
-			time.Sleep(time.Millisecond * 5)
+			time.Sleep(time.Millisecond * 1000)
 			continue
 		}
+		log.WithField("module", "dispatcher").Debug("Waiting for command")
 		command := <-d.tm.NextCommand
 		log.WithFields(log.Fields{
 			"module":  "dispatcher",
@@ -44,13 +45,13 @@ func (d *Dispatcher) Start() {
 			"command": command.Name,
 			"client":  node.ID,
 		}).Debug("Dispatch Task")
-		node.FSM.Event("work")
-		e := command.FSM.Event("start")
-		if e != nil {
-			log.Fatal(e)
+		//node.changeState <- "work"
+		err := command.FSM.Event("start")
+		if err != nil {
+			log.Fatal(err)
 		}
 		//fmt.Printf("%s|%s|%s, %s, %s\n", command.Task.Job.Name, command.Task.Name, command.Name, command.Status, client.ID)
-		err := node.assignCommand(command)
+		err = node.assignCommand(command)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"module":  "dispatcher",

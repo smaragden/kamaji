@@ -13,8 +13,8 @@ type Configuration struct {
 }
 
 var Config = Configuration{
-	LOG_LEVEL_TASK:          log.DebugLevel,
-	LOG_LEVEL_DISPATCHER:    log.DebugLevel,
-	LOG_LEVEL_CLIENTMANAGER: log.DebugLevel,
-	LOG_LEVEL_TASKMANAGER:   log.DebugLevel,
+	LOG_LEVEL_TASK:          log.InfoLevel,
+	LOG_LEVEL_DISPATCHER:    log.InfoLevel,
+	LOG_LEVEL_CLIENTMANAGER: log.InfoLevel,
+	LOG_LEVEL_TASKMANAGER:   log.InfoLevel,
 }

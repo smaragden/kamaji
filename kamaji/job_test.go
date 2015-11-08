@@ -1,59 +1,23 @@
 package kamaji_test
 
 import (
-	"github.com/garyburd/redigo/redis"
-	"github.com/smaragden/kamaji/kamaji"
-	//"math/rand"
 	"fmt"
-	//"sync"
+	"github.com/smaragden/kamaji/kamaji"
+	"sync"
 	"testing"
+	"time"
 )
 
+func changeState(job *kamaji.Job, state string, t *testing.T, wg *sync.WaitGroup) {
+	job.ChangeState <- state
+	wg.Done()
+}
 func TestJobState(t *testing.T) {
-	js := kamaji.UNKNOWN
-	if js != 0 {
-		t.Errorf("Status %q != %q", js, 0)
-	}
-	t.Logf("Status: %d, %s", kamaji.UNKNOWN, kamaji.UNKNOWN)
-	t.Logf("Status: %d, %s", kamaji.CREATING, kamaji.RUNNING)
-	t.Logf("Status: %d, %s", kamaji.IDLE, kamaji.IDLE)
-	t.Logf("Status: %d, %s", kamaji.RUNNING, kamaji.RUNNING)
-	t.Logf("Status: %d, %s", kamaji.STOPPING, kamaji.STOPPING)
-	t.Logf("Status: %d, %s", kamaji.STOPPED, kamaji.STOPPED)
-	t.Logf("Status: %d, %s", kamaji.PAUSED, kamaji.PAUSED)
-	t.Logf("Status: %d, %s", kamaji.DONE, kamaji.DONE)
-	t.Logf("Status: %d, %s", kamaji.ERROR, kamaji.ERROR)
-	t.Logf("Status: %d, %s", kamaji.ARCHIVING, kamaji.ARCHIVING)
-}
-
-func TestJobCreation(t *testing.T) {
-	count := 10
-	for i := 0; i < count; i++ {
-		job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
-		t.Logf("Job: %q, %q, %s, %d, %s", job.Name, job.ID, job.Status, job.Status, job.GetCreated())
-		_ = job.Store()
-	}
-	db := kamaji.NewDatabase()
-	db.Connect("localhost:6379")
-	var jobs []struct {
-		Name string
-	}
-	values, err := redis.Values(db.Client.Do("SORT", "jobs", "BY", "Name", "GET", "job:*->Name"))
-	if err != nil {
-		t.Error(err)
-	}
-	if err := redis.ScanSlice(values, &jobs); err != nil {
-		t.Error(err)
-	}
-	t.Logf("%v", jobs)
-}
-
-func TestJobTaskCommandCreation(t *testing.T) {
-	job_count := 1
-	task_count := 1
-	command_count := 1
+	job_count := 10
+	task_count := 2
+	command_count := 10
 	var jobs []*kamaji.Job
-	for i := 0; i < job_count; i++ {
+	for i := 1; i < job_count+1; i++ {
 		job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
 		for j := 0; j < task_count; j++ {
 			task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job)
@@ -63,16 +27,15 @@ func TestJobTaskCommandCreation(t *testing.T) {
 		}
 		jobs = append(jobs, job)
 	}
-	for _, job := range jobs {
-		err := job.FSM.Event("start")
-		if err != nil {
-			t.Log(err)
+	stateSequence := []string{"ready", "start", "finish"}
+	var wg sync.WaitGroup
+	for _, state := range stateSequence {
+		for _, job := range jobs {
+			wg.Add(1)
+			go changeState(job, state, t, &wg)
 		}
+		time.Sleep(time.Millisecond * 10)
 	}
-	for _, job := range jobs {
-		err := job.FSM.Event("stop")
-		if err != nil {
-			t.Log(err)
-		}
-	}
+	wg.Wait()
+	time.Sleep(time.Millisecond * 1000)
 }

@@ -25,7 +25,9 @@ func NewTask(name string, job *Job) *Task {
 	t.State = UNKNOWN
 	t.Job = job
 	t.Commands = []*Command{}
-	job.Children = append(job.Children, t)
+	if job != nil {
+		job.Children = append(job.Children, t)
+	}
 	t.FSM = fsm.NewFSM(
 		t.State.S(),
 		fsm.Events{
@@ -34,16 +36,13 @@ func NewTask(name string, job *Job) *Task {
 			{Name: "stop", Src: []string{WORKING.S()}, Dst: STOPPED.S()},
 		},
 		fsm.Callbacks{
-			"enter_state": func(e *fsm.Event) { t.enterState(e) },
-			READY.S():     func(e *fsm.Event) { t.readyTask(e) },
-			WORKING.S():   func(e *fsm.Event) { t.workTask(e) },
-			STOPPED.S():   func(e *fsm.Event) { t.stopTask(e) },
+			"after_event": func(e *fsm.Event) { t.afterEvent(e) },
 		},
 	)
 	return t
 }
 
-func (t *Task) enterState(e *fsm.Event) {
+func (t *Task) afterEvent(e *fsm.Event) {
 	t.State = StateFromString(e.Dst)
 	log.WithFields(log.Fields{
 		"module": "task",
@@ -51,31 +50,34 @@ func (t *Task) enterState(e *fsm.Event) {
 		"from":   e.Src,
 		"to":     e.Dst,
 	}).Debug("Changing Task State")
-}
-
-func (t *Task) readyTask(e *fsm.Event) {
-	//fmt.Printf("Ready Task: %s\n", t.Name)
 	for _, command := range t.Commands {
-		command.FSM.Event("ready")
+		command.FSM.Event(e.Event)
 	}
-}
-
-func (t *Task) workTask(e *fsm.Event) {
-	//fmt.Printf("Starting Task: %s\n", t.Name)
-	for _, command := range t.Commands {
-		command.FSM.Event("start")
-	}
-}
-
-func (t *Task) stopTask(e *fsm.Event) {
-	//fmt.Printf("Stopping Task: %s\n", t.Name)
-	for _, command := range t.Commands {
-		command.FSM.Event("stop")
-	}
+	t.Job.calculateState()
 }
 
 func (t *Task) getCommands() []*Command {
 	t.Lock()
 	defer t.Unlock()
 	return append([]*Command(nil), t.Commands...)
+}
+
+func (t *Task) calculateState() {
+	new_state := UNKNOWN
+	old_state := t.State
+	for _, command := range t.Commands {
+		if command.State > new_state {
+			new_state = command.State
+		}
+	}
+	if new_state != old_state {
+		t.State = new_state
+		log.WithFields(log.Fields{
+			"module":     "task",
+			"task":       t.Name,
+			"old_status": old_state,
+			"new_status": new_state,
+		}).Debug("Calculated new task state")
+		t.Job.calculateState()
+	}
 }

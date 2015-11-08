@@ -98,29 +98,3 @@ func (lm LicenseManager) Status(name string) Application {
 	}
 	return *app
 }
-
-func (lm LicenseManager) Store() bool {
-	/* Disabled for now
-	db := NewDatabase()
-	for _, app := range lm.Applications {
-		_, err := db.Client.Do("HSET", lm.akey(app), "count", app.count)
-		if err != nil {
-			panic(err)
-		}
-	}
-	*/
-	return true
-}
-
-/*
-func (lm LicenseManager) Store() bool {
-	db := NewDatabase()
-	for _, app := range lm.Applications {
-		_, err := db.Client.Do("SADD", lm.akey(app), app.count)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return true
-}
-*/

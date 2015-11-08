@@ -6,23 +6,12 @@ import (
 )
 
 func TestCommandStates(t *testing.T) {
-	job := kamaji.NewJob("Test Job 01")
-	task := kamaji.NewTask("Test Task 01", job)
-	command := kamaji.NewCommand("Test Command 01", task)
-	t.Logf("Command: %s is %s", command.Name, command.Status)
-	err := command.FSM.Event("start")
-	if err != nil {
-		t.Log(err)
+	command := kamaji.NewCommand("Test Command 01", nil)
+	stateSequence := []string{"ready", "assign", "start", "finish", "restart", "stop"}
+	for _, state := range stateSequence {
+		err := command.FSM.Event(state)
+		if err != nil {
+			t.Error(err)
+		}
 	}
-	t.Logf("Command: %s is %s", command.Name, command.Status)
-	err = command.FSM.Event("start")
-	if err != nil {
-		t.Log(err)
-	}
-	t.Logf("Command: %s is %s", command.Name, command.Status)
-	err = command.FSM.Event("stop")
-	if err != nil {
-		t.Log(err)
-	}
-	t.Logf("Command: %s is %s", command.Name, command.Status)
 }

@@ -1,4 +1,4 @@
-package kamaji;
+package proto_msg;
 
 message KamajiMessage {
 	enum ACTION {
@@ -21,34 +21,35 @@ message KamajiMessage {
   repeated CommandItem commanditems = 7;
   optional group StatusUpdate = 8 {
   	required int32 destination = 9;
+  	optional string name = 10;
   }
 
-  optional group NodeStats = 10 {
-    required string hostname = 11;
+  optional group NodeStats = 11 {
+    required string hostname = 12;
   }
-  optional group CommandLog = 12 {
-    required string logline = 13;
+  optional group CommandLog = 13 {
+    required string logline = 14;
   }
-  optional group Command = 14 {
-  	required string ID = 15;
+  optional group Command = 15 {
+  	required string ID = 16;
   }
   message NodeItem {
-    required string id = 16;
-    optional int32 state = 17;
+    required string id = 17;
+    optional int32 state = 18;
   }
   message JobItem {
-    required string name = 18;
-    required string id = 19;
-    optional int32 state = 20;
+    required string name = 19;
+    required string id = 20;
+    optional int32 state = 21;
   }
   message TaskItem {
-    required string name = 21;
-    required string id = 22;
-    optional int32 state = 23;
+    required string name = 22;
+    required string id = 23;
+    optional int32 state = 24;
   }
   message CommandItem {
-    required string name = 24;
-    required string id = 25;
-    optional int32 state = 26;
+    required string name = 25;
+    required string id = 26;
+    optional int32 state = 27;
   }
 }

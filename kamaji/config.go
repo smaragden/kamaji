@@ -1,20 +1,62 @@
 package kamaji
 
 import (
-	log "github.com/Sirupsen/logrus"
+    "github.com/BurntSushi/toml"
+    "fmt"
 )
 
-type Configuration struct {
-	// Logging
-	LOG_LEVEL_TASK          log.Level
-	LOG_LEVEL_DISPATCHER    log.Level
-	LOG_LEVEL_CLIENTMANAGER log.Level
-	LOG_LEVEL_TASKMANAGER   log.Level
+type dispatcher struct {
+    Listen string
+    Port   int
 }
 
-var Config = Configuration{
-	LOG_LEVEL_TASK:          log.InfoLevel,
-	LOG_LEVEL_DISPATCHER:    log.InfoLevel,
-	LOG_LEVEL_CLIENTMANAGER: log.InfoLevel,
-	LOG_LEVEL_TASKMANAGER:   log.InfoLevel,
+type database struct {
+    Type string
+    Host string
+    Port int
 }
+
+type logging struct {
+    Task           string
+    Dispatcher     string
+    Nodemanager    string
+    Taskmanager    string
+    Licensemanager string
+}
+
+type Configuration struct {
+    Logging    logging `toml:"logging"`
+    Dispatcher dispatcher `toml:"dispatcher"`
+    Database   database `toml:"database"`
+}
+
+
+var Config Configuration
+
+func init() {
+    Config = Configuration{
+        Logging:logging{
+            Task:"info",
+            Dispatcher:"info",
+            Nodemanager:"info",
+            Taskmanager:"info",
+            Licensemanager:"info",
+        },
+        Dispatcher:dispatcher{
+            Listen:"0.0.0.0",
+            Port:1314,
+        },
+        Database:database{
+            Type:"sqlite",
+            Host:"localhost",
+            Port:0,
+        },
+    }
+    if _, err := toml.DecodeFile("kamaji.conf", &Config); err != nil {
+        fmt.Println("Config parsing failed, using defaults.")
+    }
+    fmt.Printf("Conf: %+v\n", Config)
+}
+
+
+

@@ -1,150 +1,201 @@
 package kamaji
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	"errors"
-	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/golang/protobuf/proto"
-	"github.com/looplab/fsm"
-	"net"
-	"sync"
+    "code.google.com/p/go-uuid/uuid"
+    "errors"
+    "fmt"
+    log "github.com/Sirupsen/logrus"
+    "github.com/golang/protobuf/proto"
+    "github.com/looplab/fsm"
+    "net"
+    "sync"
+    "github.com/smaragden/kamaji/kamaji/proto"
+    "time"
 )
 
 func init() {
-	log.SetLevel(Config.LOG_LEVEL_CLIENTMANAGER)
+    level, err := log.ParseLevel(Config.Logging.Nodemanager)
+    if err == nil {
+        log.SetLevel(level)
+    }
 }
 
+// Node represents a instance of a worker node. Most likely a separate machine.
 type Node struct {
-	*Client
-	ID uuid.UUID
-	sync.RWMutex
-	State           State
-	FSM             *fsm.FSM
-	currentCommands []*Command
-	statusUpdate    chan State
-	sender          chan *KamajiMessage
+    sync.RWMutex
+    *Client
+    ID              uuid.UUID
+    Name            string
+    State           State
+    fsm             *fsm.FSM
+    currentCommands []*Command
+    statusUpdate    chan State
+    Send            chan *proto_msg.KamajiMessage
+    Receive         chan *proto_msg.KamajiMessage
+    done            chan bool
+    waitGroup       *sync.WaitGroup
 }
 
+// Create and return a new Node. channels for sending and receiving messages are setup.
+// And two goroutines are spawned Send and Receive to handle incoming and outgoing messages.
 func NewNode(conn net.Conn) *Node {
-	n := new(Node)
-	n.Client = NewClient(conn)
-	n.ID = uuid.NewRandom()
-	n.State = UNKNOWN
-	n.FSM = fsm.NewFSM(
-		n.State.S(),
-		fsm.Events{
-			{Name: "offline", Src: []string{ONLINE.S(), READY.S(), DISCONNECTING.S()}, Dst: OFFLINE.S()},
-			{Name: "online", Src: []string{UNKNOWN.S(), READY.S(), OFFLINE.S()}, Dst: ONLINE.S()},
-			{Name: "ready", Src: []string{ONLINE.S(), WORKING.S()}, Dst: READY.S()},
-			{Name: "assign", Src: []string{READY.S()}, Dst: ASSIGNING.S()},
-			{Name: "work", Src: []string{ASSIGNING.S()}, Dst: WORKING.S()},
-			{Name: "service", Src: []string{UNKNOWN.S(), ONLINE.S(), OFFLINE.S()}, Dst: SERVICE.S()},
-		},
-		fsm.Callbacks{
-			"after_event": func(e *fsm.Event) { n.afterEvent(e) },
-			OFFLINE.S():   func(e *fsm.Event) { n.offlineNode(e) },
-		},
-	)
+    n := new(Node)
+    n.Client = NewClient(conn)
+    n.ID = uuid.NewRandom()
+    n.Name = n.ID.String()
+    n.State = UNKNOWN
+    n.fsm = fsm.NewFSM(
+        n.State.S(),
+        fsm.Events{
+            {Name: "offline", Src: StateList(ONLINE, READY, ASSIGNING, WORKING), Dst: OFFLINE.S()},
+            {Name: "online", Src: StateList(UNKNOWN, READY, OFFLINE), Dst: ONLINE.S()},
+            {Name: "ready", Src: StateList(ONLINE, WORKING), Dst: READY.S()},
+            {Name: "assign", Src: StateList(READY), Dst: ASSIGNING.S()},
+            {Name: "work", Src: StateList(ASSIGNING), Dst: WORKING.S()},
+            {Name: "service", Src: StateList(UNKNOWN, ONLINE, OFFLINE), Dst: SERVICE.S()},
+        },
+        fsm.Callbacks{
+            "after_event": func(e *fsm.Event) { n.afterEvent(e) },
+            "before_offline": func(e *fsm.Event) { n.beforeOffline(e) },
+            OFFLINE.S():   func(e *fsm.Event) { n.offlineNode(e) },
+        },
+    )
 
-	n.sender = make(chan *KamajiMessage)
-	return n
+    n.Send = make(chan *proto_msg.KamajiMessage)
+    n.Receive = make(chan *proto_msg.KamajiMessage)
+    n.done = make(chan bool)
+    n.waitGroup = &sync.WaitGroup{}
+    go n.messageTransmitter()
+    go n.messageReciever()
+    return n
 }
 
+// Synchronous state changer. This method should almost always be called when you want to change state.
 func (n *Node) ChangeState(state string) {
-	n.Lock()
-	defer n.Unlock()
-	err := n.FSM.Event(state)
-	if err != nil {
-		log.WithFields(log.Fields{"module": "nodemanager", "fuction": "stateChanger", "node": n.ID}).Fatal(err)
-	}
+    n.Lock()
+    defer n.Unlock()
+    err := n.fsm.Event(state)
+    if err != nil {
+        log.WithFields(log.Fields{"module": "nodemanager", "fuction": "stateChanger", "node": n.Name}).Fatal(err)
+    }
 }
 
-func (c *Node) isEqual(other *Node) bool {
-	return c.ID.String() == other.ID.String()
+func (n *Node) afterEvent(e *fsm.Event) {
+    n.State = StateFromString(e.Dst)
+    log.WithFields(log.Fields{
+        "module": "node",
+        "node":   n.Name,
+        "from":   e.Src,
+        "to":     e.Dst,
+    }).Debug("Changing Node State")
 }
 
-func (c *Node) afterEvent(e *fsm.Event) {
-	c.State = StateFromString(e.Dst)
-	log.WithFields(log.Fields{
-		"module": "node",
-		"node":   c.ID,
-		"from":   e.Src,
-		"to":     e.Dst,
-	}).Debug("Changing Node State")
-	//c.statusUpdate <- c.State
+// We close the message handlers (messageTransmitter, messageReciever) before entering the offline state.
+func (c *Node) beforeOffline(e *fsm.Event) {
+    close(c.done)
+    c.waitGroup.Wait()
 }
 
+// Close the nodes connection.
 func (c *Node) offlineNode(e *fsm.Event) {
-	c.Conn.Close()
-	// TODO: Handle stray jobs
-	//fmt.Printf("Stopping Node: %s\n", c.ID)
+    c.Conn.Close()
+    // TODO: Handle stray jobs
 }
 
-func (n *Node) messageSender() {
-	for {
-		message := <-n.sender
-		message_data, err := proto.Marshal(message)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		_, err = n.SendMessage(message_data)
-		if err != nil {
-			log.WithFields(log.Fields{"module": "nodemanager", "function": "messageSender"}).Error(err)
-			continue
-		}
-	}
-}
-
+// Assign a command to this node and report to the client.
+// we add a reference to the command on this node to be able to track it later.
 func (n *Node) assignCommand(command *Command) error {
-	message := &KamajiMessage{
-		Action: KamajiMessage_ASSIGN.Enum(),
-		Entity: KamajiMessage_COMMAND.Enum(),
-		Id:     proto.String(command.ID.String()),
-	}
-	n.currentCommands = append(n.currentCommands, command)
-	log.WithFields(log.Fields{"module": "nodemanager", "client": n.ID, "command": command.Name}).Info("Assigning command to client.")
-	n.sender <- message
-	return nil
+    message := &proto_msg.KamajiMessage{
+        Action: proto_msg.KamajiMessage_ASSIGN.Enum(),
+        Entity: proto_msg.KamajiMessage_COMMAND.Enum(),
+        Id:     proto.String(command.ID.String()),
+    }
+    n.currentCommands = append(n.currentCommands, command)
+    log.WithFields(log.Fields{"module": "nodemanager", "client": n.Name, "command": command.Name}).Info("Assigning command to client.")
+    n.Send <- message
+    return nil
 }
 
+// Remove the command that was added in assignCommand.
 func (n *Node) removeCommand(command_id string) error {
-	log.WithFields(log.Fields{"module": "nodemanager", "client": n.ID, "command": command_id}).Debug("Clean up command.")
-	for i, node_commands := range n.currentCommands {
-		if node_commands.ID.String() == command_id {
-			n.currentCommands = append(n.currentCommands[:i], n.currentCommands[i+1:]...)
-			return nil
-		}
-	}
-	return errors.New("Couldn't find command on client.")
+    log.WithFields(log.Fields{"module": "nodemanager", "client": n.Name, "command": command_id}).Debug("Clean up command.")
+    for i, node_commands := range n.currentCommands {
+        if node_commands.ID.String() == command_id {
+            n.currentCommands = append(n.currentCommands[:i], n.currentCommands[i + 1:]...)
+            return nil
+        }
+    }
+    return errors.New("Couldn't find command on client.")
 }
 
+// Send a request to the client that we want to update our state. The client will respond with the status it agrees with.
 func (n *Node) requestStatusUpdate(state State) error {
-	log.WithFields(log.Fields{"module": "nodemanager", "client": n.ID, "state": n.State, "new_state": state}).Debug("State Update Request")
-	message := &KamajiMessage{
-		Action: KamajiMessage_STATUS_UPDATE.Enum(),
-		Entity: KamajiMessage_NODE.Enum(),
-		Id:     proto.String(n.ID.String()),
-		Statusupdate: &KamajiMessage_StatusUpdate{
-			Destination: proto.Int32(int32(state)),
-		},
-	}
-	n.sender <- message
-	return nil
+    log.WithFields(log.Fields{"module": "nodemanager", "client": n.Name, "state": n.State, "new_state": state}).Debug("State Update Request")
+    message := &proto_msg.KamajiMessage{
+        Action: proto_msg.KamajiMessage_STATUS_UPDATE.Enum(),
+        Entity: proto_msg.KamajiMessage_NODE.Enum(),
+        Id:     proto.String(n.ID.String()),
+        Statusupdate: &proto_msg.KamajiMessage_StatusUpdate{
+            Destination: proto.Int32(int32(state)),
+        },
+    }
+    n.Send <- message
+    return nil
 }
 
-func (n *Node) recieveMessage() (*KamajiMessage, error) {
-	tmp, err := n.ReadMessage()
-	if err != nil {
-		fmt.Println("Error reading message: ", err)
-		return nil, err
-	}
-	message := &KamajiMessage{}
-	err = proto.Unmarshal(tmp, message)
-	if err != nil {
-		fmt.Println("error unmarshall message.", err)
-		return nil, err
-	}
-	return message, nil
+// Send a message to the client.
+func (n *Node) messageTransmitter() {
+    n.waitGroup.Add(1)
+    defer n.waitGroup.Done()
+    for {
+        select {
+        case <-n.done:
+            return
+        case message := <-n.Send:
+            message_data, err := proto.Marshal(message)
+            if err != nil {
+                fmt.Println(err)
+                continue
+            }
+            n.SetDeadline(time.Now().Add(6e7)) //TODO: Find proper value, this affects the time to offline the node
+            _, err = n.SendMessage(message_data)
+            if err != nil {
+                if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+                    continue
+                }
+                log.WithFields(log.Fields{"module": "nodemanager", "function": "messageSender"}).Error(err)
+            }
+        case <-time.After(time.Millisecond * 10):
+            continue
+        }
+    }
+}
+
+// Receive a message from the client
+func (n *Node) messageReciever() {
+    n.waitGroup.Add(1)
+    defer n.waitGroup.Done()
+    for {
+        n.SetDeadline(time.Now().Add(6e7)) //TODO: Find proper value, this affects the time to offline the node
+        tmp, err := n.ReadMessage()
+        if err != nil {
+            select {
+            case <-n.done:
+                return
+            default:
+                if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+                    continue
+                }
+                fmt.Println("[messageReciever] Error reading message: ", n.Name, ", ", err)
+                return
+            }
+        }
+        message := &proto_msg.KamajiMessage{}
+        err = proto.Unmarshal(tmp, message)
+        if err != nil {
+            fmt.Println("[messageReciever] error unmarshall message.", err)
+            return
+        }
+        n.Receive <- message
+    }
 }

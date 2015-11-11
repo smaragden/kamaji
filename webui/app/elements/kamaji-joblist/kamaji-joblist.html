@@ -16,6 +16,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         display: block;
       }
     </style>
+    <byutv-jsonp id="requester"
+      auto
+      url="http://localhost:8080/jobs"
+      params='{"userId":"1"}'
+      on-response="handleResponse"
+      debounce-duration="300"></byutv-jsonp>
     <template is="dom-repeat" items="{{task_tree}}" as="job">
       <div on-click="expandJob" style="border: 1px solid red;">
         <div>Name: <span>[[job.name]]</span></div>
@@ -37,33 +43,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             type: Array,
             value: [],
             notify: true
+          },
+          counter: {
+            type: Number,
+            value: 0
           }
         },
         ready: function() {
           console.log('READY!');
-          this._requestJobs();
         },
         handleResponse: function (request) {
+          console.log("got response")
           var jobResponse = request.detail;
           for (var key in jobResponse) {
             this.addOrUpdate(jobResponse[key])
           }
-          //this._requestJobs('job1', function() { // first arg is the name of the "job"
-          //  console.log("New Request");
-          //}, 5000);
-          //this.async(function() {
-          //  console.log("New Request");
-          //  jsonp.generateRequest();
-          //}, null, 10000);
-        },
-        _requestJobs: function(){
-          console.log("HERE?")
-          var jsonp = new Byutv.Jsonp();
-          jsonp.setAttribute("url", "http://localhost:8080/jobs");
-          jsonp.setAttribute("auto", "");
-          jsonp.setAttribute("on-response", "handleResponse");
-          jsonp.setAttribute("params", '{"userId":"1"}');
-          //jsonp.generateRequest();
+          var timeoutID = window.setTimeout(function (self) {
+            self.$.requester.generateRequest();
+          }, 1000, this);
         },
         _idToIndex: function(id){
           var arrayLength = this.task_tree.length;
@@ -79,15 +76,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           if(index==-1){
             this.push('task_tree', job);
           }else{
-            this.set('task_tree.'+index+'.State', "POOP");
+            this.set('task_tree.'+index+'.State', job.State);
           }
         },
         expandJob: function (e) {
           var model = e.model;
           this.addOrUpdate(model.job);
-
-
-
         }
       });
     })();

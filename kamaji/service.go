@@ -7,6 +7,7 @@ import (
     "net/http"
     "github.com/gorilla/mux"
     "encoding/json"
+    //"io/ioutil"
 )
 
 type J_Job struct {
@@ -34,6 +35,7 @@ type J_Command struct {
 type J_Commands []J_Command
 
 type Service struct {
+    r *mux.Router
     Addr string
     Port int
     lm   *LicenseManager
@@ -57,16 +59,15 @@ func (s *Service) GetAddrStr() string {
 }
 
 func (s *Service) Start() {
-    router := mux.NewRouter().StrictSlash(true)
-    router.HandleFunc("/", s.Index)
-    router.HandleFunc("/jobs", s.JobsIndex)
-    router.HandleFunc("/jobs/{jobId}", s.JobShow)
-    router.HandleFunc("/jobs/{jobId}/tasks", s.TasksIndex)
-    router.HandleFunc("/jobs/{jobId}/tasks/{taskId}", s.TaskShow)
-    router.HandleFunc("/jobs/{jobId}/tasks/{taskId}/commands", s.CommandsIndex)
-    router.HandleFunc("/jobs/{jobId}/tasks/{taskId}/commands/{commandId}", s.CommandShow)
-
-    log.Fatal(http.ListenAndServe(s.GetAddrStr(), router))
+    s.r = mux.NewRouter().StrictSlash(true)
+    s.r.HandleFunc("/", s.Index)
+    s.r.HandleFunc("/jobs", s.JobsIndex)
+    s.r.HandleFunc("/jobs/{jobId}", s.JobShow)
+    s.r.HandleFunc("/jobs/{jobId}/tasks", s.TasksIndex)
+    s.r.HandleFunc("/jobs/{jobId}/tasks/{taskId}", s.TaskShow)
+    s.r.HandleFunc("/jobs/{jobId}/tasks/{taskId}/commands", s.CommandsIndex)
+    s.r.HandleFunc("/jobs/{jobId}/tasks/{taskId}/commands/{commandId}", s.CommandShow)
+    log.Fatal(http.ListenAndServe(s.GetAddrStr(), s.r))
 }
 
 func (s *Service) Stop() {
@@ -77,16 +78,36 @@ func (s *Service) Index(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintln(w, "Welcome!")
 }
 
+type test_struct struct {
+    Type string
+}
+
+
 func (s *Service) JobsIndex(w http.ResponseWriter, r *http.Request) {
+    callback := r.FormValue("callback")
+    fmt.Println(callback)
     jobs := J_Jobs{}
     for _, job := range s.tm.Jobs {
         j_job := J_Job{Name: job.Name, Id: job.ID.String(), State: job.State.S()}
         jobs = append(jobs, j_job)
     }
-    json.NewEncoder(w).Encode(jobs)
+    jsonBytes, _ := json.Marshal(jobs)
+    if callback != "" {
+        fmt.Fprintf(w, "%s(%s)", callback, jsonBytes)
+    } else {
+        w.Write(jsonBytes)
+    }
+
 }
 
 func (s *Service) JobShow(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+    if origin := r.Header.Get("Origin"); origin != "" {
+        w.Header().Set("Access-Control-Allow-Origin", origin)
+        w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+        w.Header().Set("Access-Control-Allow-Headers",
+            "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+    }
     vars := mux.Vars(r)
     jobId := vars["jobId"]
     job := s.tm.GetJobFromId(jobId)

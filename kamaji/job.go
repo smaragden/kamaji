@@ -21,6 +21,7 @@ type Job struct {
     ID          uuid.UUID
     Name        string
     State       State
+    Completion float32
     Children    []*Task
     created     time.Time
     FSM         *fsm.FSM
@@ -35,6 +36,7 @@ func NewJob(name string) *Job {
     j.ID = uuid.NewRandom()
     j.Name = name
     j.State = UNKNOWN
+    j.Completion = 0.0
     j.Children = []*Task{}
     j.created = time.Now()
     j.priority = 0
@@ -80,11 +82,14 @@ func (j *Job) afterEvent(e *fsm.Event) {
 func (j *Job) calculateState() {
     new_state := UNKNOWN
     old_state := j.State
+    var completion float32
     for _, task := range j.Children {
+        completion+=task.Completion
         if task.State > new_state {
             new_state = task.State
         }
     }
+    j.Completion = completion/float32(len(j.Children))
     if new_state != old_state {
         j.State = new_state
         log.WithFields(log.Fields{

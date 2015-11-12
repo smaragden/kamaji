@@ -13,6 +13,7 @@ type Task struct {
     ID       uuid.UUID
     Name     string
     State    State
+    Completion float32
     Job      *Job
     Commands []*Command
     created  time.Time
@@ -26,6 +27,7 @@ func NewTask(name string, job *Job) *Task {
     t.ID = uuid.NewRandom()
     t.Name = name
     t.State = UNKNOWN
+    t.Completion = 0.0
     t.Job = job
     t.Commands = []*Command{}
     t.created = time.Now()
@@ -81,12 +83,15 @@ func (t *Task) GetCommandFromId(id string) *Command {
 func (t *Task) calculateState() {
     new_state := UNKNOWN
     old_state := t.State
+    var completion float32
     for _, command := range t.Commands {
+        completion+=command.Completion
         if command.State > new_state {
             new_state = command.State
         }
     }
-    if new_state != old_state {
+    t.Completion = completion/float32(len(t.Commands))
+    //if new_state != old_state {
         t.State = new_state
         log.WithFields(log.Fields{
             "module":     "task",
@@ -95,7 +100,7 @@ func (t *Task) calculateState() {
             "new_status": new_state,
         }).Debug("Calculated new task state")
         t.Job.calculateState()
-    }
+    //}
 }
 
 func (t *Task) GetPrio() int {

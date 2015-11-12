@@ -13,7 +13,8 @@ import (
 type J_Job struct {
     Name  string    `json:"name"`
     Id    string    `json:"id"`
-    State string   `json:state`
+    State string   `json:"state"`
+    Completion float32 `json:"completion"`
 }
 
 type J_Jobs []J_Job
@@ -21,7 +22,7 @@ type J_Jobs []J_Job
 type J_Task struct {
     Name  string    `json:"name"`
     Id    string    `json:"id"`
-    State string   `json:state`
+    State string   `json:"state"`
 }
 
 type J_Tasks []J_Task
@@ -29,7 +30,7 @@ type J_Tasks []J_Task
 type J_Command struct {
     Name  string    `json:"name"`
     Id    string    `json:"id"`
-    State string   `json:state`
+    State string   `json:"state"`
 }
 
 type J_Commands []J_Command
@@ -88,7 +89,7 @@ func (s *Service) JobsIndex(w http.ResponseWriter, r *http.Request) {
     fmt.Println(callback)
     jobs := J_Jobs{}
     for _, job := range s.tm.Jobs {
-        j_job := J_Job{Name: job.Name, Id: job.ID.String(), State: job.State.S()}
+        j_job := J_Job{Name: job.Name, Id: job.ID.String(), State: job.State.S(), Completion: job.Completion}
         jobs = append(jobs, j_job)
     }
     jsonBytes, _ := json.Marshal(jobs)
@@ -112,7 +113,7 @@ func (s *Service) JobShow(w http.ResponseWriter, r *http.Request) {
     jobId := vars["jobId"]
     job := s.tm.GetJobFromId(jobId)
     if job != nil {
-        j_job := J_Job{Name: job.Name, Id: job.ID.String(), State: job.State.S()}
+        j_job := J_Job{Name: job.Name, Id: job.ID.String(), State: job.State.S(), Completion: job.Completion}
         json.NewEncoder(w).Encode(j_job)
     }else {
         fmt.Fprintln(w, "Not Found:", jobId)

@@ -31,9 +31,9 @@ func main() {
     }()
 
     // Create Test Jobs
-    job_count := 20
+    job_count := 10
     task_count := 2
-    command_count := 10
+    command_count := 100
     for i := 1; i < job_count + 1; i++ {
         job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
         for j := 0; j < task_count; j++ {

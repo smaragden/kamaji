@@ -16,6 +16,7 @@ type Command struct {
     ID    uuid.UUID
     Name  string
     State State
+    Completion float32
     Task  *Task
     FSM   *fsm.FSM
 }
@@ -25,8 +26,9 @@ func NewCommand(name string, task *Task) *Command {
     c := new(Command)
     c.ID = uuid.NewRandom()
     c.Name = name
-    c.Task = task
     c.State = UNKNOWN
+    c.Completion = 0.0
+    c.Task = task
     if task != nil {
         task.Commands = append(task.Commands, c)
     }
@@ -42,9 +44,14 @@ func NewCommand(name string, task *Task) *Command {
         },
         fsm.Callbacks{
             "after_event": func(e *fsm.Event) { c.afterEvent(e) },
+            DONE.S():   func(e *fsm.Event) { c.finishCommand(e) },
         },
     )
     return c
+}
+
+func (c *Command) finishCommand(e *fsm.Event) {
+    c.Completion = 1.0
 }
 
 // Set the state of the Command after a successful state transition.

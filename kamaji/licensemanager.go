@@ -1,17 +1,21 @@
 package kamaji
 
 import (
+    "errors"
     "bytes"
     "fmt"
     "sync"
     log "github.com/Sirupsen/logrus"
 )
 
+var LicenseReturner chan []string
+
 func init() {
     level, err := log.ParseLevel(Config.Logging.Licensemanager)
     if err == nil {
         log.SetLevel(level)
     }
+    LicenseReturner = make(chan []string)
 }
 type Application struct {
     sync.RWMutex
@@ -28,30 +32,42 @@ func NewApplication(name string, count int) *Application {
     return a
 }
 
-func (a *Application) Borrow() (int, bool) {
+func (a *Application) Borrow() (int, error) {
     if a.available > 0 {
         a.available--
-        return 1, true
+        return 1, nil
     }
-    return 0, false
+    return 0, errors.New("No license available!")
 }
 
-func (a *Application) Return() (int, bool) {
+func (a *Application) Return() (int, error) {
     if a.available < a.count {
         a.available++
-        return 1, true
+        return 1, nil
     }
-    return 0, false
+    return 0, errors.New("Trying to return to many licenses!")
 }
 
 type LicenseManager struct {
     Applications map[string]*Application
+
 }
 
 func NewLicenseManager() *LicenseManager {
     lm := new(LicenseManager)
     lm.Applications = make(map[string]*Application)
+    go lm.licenseReturnerRoutine()
     return lm
+}
+
+func (lm LicenseManager) licenseReturnerRoutine() {
+    for {
+        lics := <- LicenseReturner
+        for _, lic := range lics{
+            fmt.Println("Returning License")
+            lm.Return(lic)
+        }
+    }
 }
 
 func (lm LicenseManager) lkey() string {
@@ -76,26 +92,27 @@ func (lm LicenseManager) AddApplication(name string, count int) int {
     return count
 }
 
-func (lm LicenseManager) Borrow(name string) (int, bool) {
+func (lm LicenseManager) Borrow(name string) (int, error) {
     app, ok := lm.Applications[name]
-    if ok {
-        app.Lock()
-        n, err := app.Borrow()
-        app.Unlock()
-        return n, err
+    if !ok{
+        return 0, errors.New("No application exists!")
     }
-    return 0, false
+    app.Lock()
+    n, err := app.Borrow()
+    app.Unlock()
+    return n, err
+
 }
 
-func (lm LicenseManager) Return(name string) (int, bool) {
+func (lm LicenseManager) Return(name string) (int, error) {
     app, ok := lm.Applications[name]
-    if ok {
-        app.Lock()
-        n, err := app.Return()
-        app.Unlock()
-        return n, err
+    if !ok {
+        return 0, errors.New("No application exists!")
     }
-    return 0, false
+    app.Lock()
+    n, err := app.Return()
+    app.Unlock()
+    return n, err
 }
 
 func (lm LicenseManager) Status(name string) Application {

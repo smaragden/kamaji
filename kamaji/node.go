@@ -49,7 +49,7 @@ func NewNode(conn net.Conn) *Node {
         fsm.Events{
             {Name: "offline", Src: StateList(ONLINE, READY, ASSIGNING, WORKING), Dst: OFFLINE.S()},
             {Name: "online", Src: StateList(UNKNOWN, READY, OFFLINE), Dst: ONLINE.S()},
-            {Name: "ready", Src: StateList(ONLINE, WORKING), Dst: READY.S()},
+            {Name: "ready", Src: StateList(ONLINE, WORKING, ASSIGNING), Dst: READY.S()},
             {Name: "assign", Src: StateList(READY), Dst: ASSIGNING.S()},
             {Name: "work", Src: StateList(ASSIGNING), Dst: WORKING.S()},
             {Name: "service", Src: StateList(UNKNOWN, ONLINE, OFFLINE), Dst: SERVICE.S()},
@@ -105,6 +105,7 @@ func (c *Node) offlineNode(e *fsm.Event) {
 // Assign a command to this node and report to the client.
 // we add a reference to the command on this node to be able to track it later.
 func (n *Node) assignCommand(command *Command) error {
+    fmt.Println("ASSIGN!")
     message := &proto_msg.KamajiMessage{
         Action: proto_msg.KamajiMessage_ASSIGN.Enum(),
         Entity: proto_msg.KamajiMessage_COMMAND.Enum(),

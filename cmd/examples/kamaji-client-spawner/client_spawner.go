@@ -42,7 +42,7 @@ func (c *ClientConn) messageSender() {
 
 func doWork(client *ClientConn, message *proto_msg.KamajiMessage) {
     fmt.Println("Doing Work Started: ", message.GetId())
-    time.Sleep(time.Millisecond * 500)
+    time.Sleep(time.Millisecond * 1000)
     fmt.Println("Doing Work Done: ", message.GetId())
     response := &proto_msg.KamajiMessage{
         Action: proto_msg.KamajiMessage_STATUS_UPDATE.Enum(),

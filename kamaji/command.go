@@ -19,6 +19,7 @@ type Command struct {
     Completion float32
     Task  *Task
     FSM   *fsm.FSM
+    Licenses []string
 }
 
 // Create a new Command instance and return it.
@@ -35,7 +36,7 @@ func NewCommand(name string, task *Task) *Command {
     c.FSM = fsm.NewFSM(
         c.State.S(),
         fsm.Events{
-            {Name: "ready", Src: StateList(UNKNOWN, STOPPED), Dst: READY.S()},
+            {Name: "ready", Src: StateList(UNKNOWN, STOPPED, ASSIGNING), Dst: READY.S()},
             {Name: "assign", Src: StateList(READY), Dst: ASSIGNING.S()},
             {Name: "start", Src: StateList(UNKNOWN, READY, ASSIGNING, STOPPED), Dst: WORKING.S()},
             {Name: "restart", Src: StateList(DONE), Dst: WORKING.S()},
@@ -51,8 +52,12 @@ func NewCommand(name string, task *Task) *Command {
 }
 
 func (c *Command) finishCommand(e *fsm.Event) {
+    // Return licenses
+    LicenseReturner <- c.Licenses
+    c.Licenses = []string{}
     c.Completion = 1.0
 }
+
 
 // Set the state of the Command after a successful state transition.
 // If the command have a Task, tell the task to recalculate it's State
@@ -68,3 +73,4 @@ func (c *Command) afterEvent(e *fsm.Event) {
         c.Task.calculateState()
     }
 }
+

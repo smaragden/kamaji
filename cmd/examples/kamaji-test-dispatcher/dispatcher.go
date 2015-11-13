@@ -13,6 +13,8 @@ func main() {
     fmt.Println("Starting")
     // Create all managers
     lm := kamaji.NewLicenseManager()
+    lm.AddApplication("maya", 4)
+    lm.AddApplication("nuke", 4)
     nm := kamaji.NewNodeManager("", 1314)
     tm := kamaji.NewTaskManager()
     d := kamaji.NewDispatcher(lm, nm, tm)
@@ -33,11 +35,15 @@ func main() {
     // Create Test Jobs
     job_count := 10
     task_count := 2
-    command_count := 100
+    command_count := 10
     for i := 1; i < job_count + 1; i++ {
         job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
         for j := 0; j < task_count; j++ {
-            task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job)
+            lic_name := "maya"
+            if i > 6{
+                lic_name = "nuke"
+            }
+            task := kamaji.NewTask(fmt.Sprintf("Task %d [%s]", j, lic_name), job, []string{lic_name})
             for k := 0; k < command_count; k++ {
                 _ = kamaji.NewCommand(fmt.Sprintf("Command %d", k), task)
             }

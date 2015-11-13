@@ -23,6 +23,7 @@ type J_Task struct {
     Name  string    `json:"name"`
     Id    string    `json:"id"`
     State string   `json:"state"`
+    Completion float32 `json:"completion"`
 }
 
 type J_Tasks []J_Task
@@ -31,6 +32,7 @@ type J_Command struct {
     Name  string    `json:"name"`
     Id    string    `json:"id"`
     State string   `json:"state"`
+    Completion float32 `json:"completion"`
 }
 
 type J_Commands []J_Command
@@ -122,16 +124,22 @@ func (s *Service) JobShow(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) TasksIndex(w http.ResponseWriter, r *http.Request) {
+    callback := r.FormValue("callback")
     vars := mux.Vars(r)
     jobId := vars["jobId"]
     tasks := J_Tasks{}
     job := s.tm.GetJobFromId(jobId)
     if job != nil {
         for _, task := range job.GetTasks() {
-            j_task := J_Task{Name: task.Name, Id: task.ID.String(), State: job.State.S()}
+            j_task := J_Task{Name: task.Name, Id: task.ID.String(), State: job.State.S(), Completion: task.Completion}
             tasks = append(tasks, j_task)
         }
-        json.NewEncoder(w).Encode(tasks)
+        jsonBytes, _ := json.Marshal(tasks)
+        if callback != "" {
+            fmt.Fprintf(w, "%s(%s)", callback, jsonBytes)
+        } else {
+            w.Write(jsonBytes)
+        }
     }else {
         fmt.Fprintln(w, "Not Found:", jobId)
     }
@@ -157,6 +165,7 @@ func (s *Service) TaskShow(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) CommandsIndex(w http.ResponseWriter, r *http.Request) {
+    callback := r.FormValue("callback")
     vars := mux.Vars(r)
     jobId := vars["jobId"]
     taskId := vars["taskId"]
@@ -166,10 +175,15 @@ func (s *Service) CommandsIndex(w http.ResponseWriter, r *http.Request) {
         task := job.GetTaskFromId(taskId)
         if task != nil {
             for _, command := range task.getCommands() {
-                j_command := J_Command{Name: command.Name, Id: command.ID.String(), State: job.State.S()}
+                j_command := J_Command{Name: command.Name, Id: command.ID.String(), State: job.State.S(), Completion: command.Completion}
                 commands = append(commands, j_command)
             }
-            json.NewEncoder(w).Encode(commands)
+            jsonBytes, _ := json.Marshal(commands)
+            if callback != "" {
+                fmt.Fprintf(w, "%s(%s)", callback, jsonBytes)
+            } else {
+                w.Write(jsonBytes)
+            }
         }else {
             fmt.Fprintln(w, "Not Found:", taskId)
         }

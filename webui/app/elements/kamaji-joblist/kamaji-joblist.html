@@ -14,25 +14,69 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     <style>
       :host {
         display: block;
+        --paper-listbox-background-color: var(--paper-menu-background-color, white);
+      }
+      .task{
+        width: 100%;
+      }
+      hr {
+        border: 0;
+        height: 1px;
+        background-color: darkgray;
       }
     </style>
-    <byutv-jsonp id="requester"
-      auto
-      url="http://localhost:8080/jobs"
-      params='{"userId":"1"}'
-      on-response="handleResponse"
-      debounce-duration="300"></byutv-jsonp>
+    <byutv-jsonp id="job_requester"
+                 url="http://10.1.0.100:8080/jobs"
+                 on-response="handleJobResponse"
+                 debounce-duration="300"></byutv-jsonp>
+    <byutv-jsonp id="task_requester"
+                 url=""
+                 on-response="handleTaskResponse"
+                 debounce-duration="300"></byutv-jsonp>
+    <byutv-jsonp id="command_requester"
+                 url=""
+                 on-response="handleCommandResponse"
+                 debounce-duration="300"></byutv-jsonp>
+    <paper-listbox id="job_list">
     <template is="dom-repeat" items="{{task_tree}}" as="job">
-      <div on-click="expandJob" style="border: 1px solid red;">
-        <div>Name: <span>[[job.name]]</span></div>
-        <div>Id: <span>[[job.id]]</span></div>
-        <div>State: <span>[[job.state]]</span></div>
-        <div style="border: 1px solid red;height: 20px;">
-          <div style$="background-color: blue; border:1px solid green;height: 100%; width: {{job.completion}}%"></div>
+      <paper-item>
+        <div class="task">
+          <div>
+            <paper-icon-button id="[[job.id]]" icon="menu" on-click="expandJob">Tasks</paper-icon-button>[[job.name]]</div>
+          <div>
+            <paper-progress style="width: inherit" max=1 step=0.01 value="[[job.completion]]"></paper-progress>
+          </div>
+          <paper-listbox multi>
+            <template is="dom-repeat" items="{{job.tasks}}" as="task" bind={{job as jobbet}}>
+              <paper-item>
+                <div class="task">
+                  <div>
+                    <paper-icon-button id="[[task.id]]" jobid=[[job.id]] icon="menu" on-click="expandTask">Commands</paper-icon-button>[[task.name]]</div>
+                  <div>
+                  <div>
+                    <paper-progress style="width: inherit" max=1 step=0.01 value="[[task.completion]]"></paper-progress>
+                  </div>
+                  <paper-listbox multi>
+                    <template is="dom-repeat" items="{{task.commands}}" as="command">
+                      <paper-item>
+                        <div class="task">
+                          <div>[[command.name]]</div>
+                          <div>
+                            <paper-progress style="width: inherit" max=1 step=0.01 value="[[command.completion]]"></paper-progress>
+                          </div>
+                        </div>
+                      </paper-item>
+                    </template>
+                  </paper-listbox>
+                </div>
+              </paper-item>
+            </template>
+          </paper-listbox>
         </div>
-      </div>
+      </paper-item>
       <hr>
     </template>
+    </paper-listbox>
   </template>
   <script>
     (function () {
@@ -52,42 +96,133 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             value: 0
           }
         },
+        job_requester: {
+          requester: null,
+          started: false,
+          timeoutId: -1
+        },
+        task_requester: {
+          requester: null,
+          started: false,
+          timeoutId: -1
+        },
+        command_requester: {
+          requester: null,
+          started: false,
+          timeoutId: -1
+        },
         ready: function() {
           console.log('READY!');
+          this.job_requester.requester = this.$.job_requester;
+          this.job_requester.requester.generateRequest();
+          this.task_requester.requester = this.$.task_requester;
+          this.command_requester.requester = this.$.command_requester;
         },
-        handleResponse: function (request) {
-          console.log("got response")
+        handleJobResponse: function (request) {
+          console.log("Got job Request.")
           var jobResponse = request.detail;
           for (var key in jobResponse) {
             var j = jobResponse[key];
-            j.completion = j.completion*100;
-            this.addOrUpdate(j)
-            console.log(jobResponse[key])
+            j.tasks = [];
+            var index = this._idToIndex(this.task_tree, j.id);
+            this.addOrUpdate(this.task_tree, 'task_tree', index, j)
           }
-          var timeoutID = window.setTimeout(function (self) {
-            self.$.requester.generateRequest();
+          this.job_requester.timeoutId = window.setTimeout(function (self) {
+            self.$.job_requester.generateRequest();
           }, 1000, this);
         },
-        _idToIndex: function(id){
-          var arrayLength = this.task_tree.length;
+        handleTaskResponse: function (request) {
+          console.log("Got task Request.")
+          var job_id = request.target.params.jobid;
+          var job_index = this._idToIndex(this.task_tree, job_id);
+          var taskResponse = request.detail;
+          for (var key in taskResponse) {
+            var t = taskResponse[key];
+            t.commands = [];
+            var index = this._idToIndex(this.task_tree[job_index].tasks, t.id);
+            this.addOrUpdate(this.task_tree[job_index].tasks, 'task_tree.'+job_index+'.tasks', index, t);
+          }
+          this.task_requester.timeoutId = window.setTimeout(function (self) {
+            self.$.task_requester.generateRequest();
+          }, 1000, this);
+        },
+        handleCommandResponse: function (request) {
+          console.log("Got Commands")
+          console.log(request)
+          var job_id = request.target.params.jobid;
+          var task_id = request.target.params.taskid;
+          var job_index = this._idToIndex(this.task_tree, job_id);
+          console.log(job_index)
+          var task_index = this._idToIndex(this.task_tree[job_index].tasks, task_id);
+          var commandResponse = request.detail;
+          for (var key in commandResponse) {
+            var c = commandResponse[key];
+            var index = this._idToIndex(this.task_tree[job_index].tasks[task_index].commands, c.id);
+            this.addOrUpdate(this.task_tree[job_index].tasks[task_index], 'task_tree.'+job_index+'.tasks.'+task_index+'.commands', index, c);
+          }
+          this.command_requester.timeoutId = window.setTimeout(function (self) {
+            self.$.command_requester.generateRequest();
+          }, 1000, this);
+        },
+        _idToIndex: function(list, id){
+          var arrayLength = list.length;
           for (var i = 0; i < arrayLength; i++) {
-            if(this.task_tree[i].id == id){
+            if(list[i].id == id){
               return i
             }
           }
           return -1;
         },
-        addOrUpdate: function(job){
-          var index = this._idToIndex(job.id);
+        addOrUpdate: function(list, listname, index, task){
           if(index==-1){
-            this.push('task_tree', job);
+            this.push(listname, task);
           }else{
-            this.set('task_tree.'+index, job);
+            this.set(listname+'.'+index+'.name', task.name);
+            this.set(listname+'.'+index+'.id', task.id);
+            this.set(listname+'.'+index+'.state', task.state);
+            this.set(listname+'.'+index+'.completion', task.completion);
           }
         },
         expandJob: function (e) {
           var model = e.model;
-          this.addOrUpdate(model.job);
+          var joblist = this.$.job_list;
+          for(var job in this.task_tree){
+            this.set('task_tree.'+job+'.tasks', []);
+            console.log(joblist.items[job]);
+          }
+          this.task_requester.requester.url = "http://10.1.0.100:8080/jobs/"+model.job.id+"/tasks";
+          this.task_requester.requester.params = {jobid: model.job.id};
+          if(this.task_requester.timeoutId != -1){
+            window.clearTimeout(this.task_requester.timeoutId);
+            this.task_requester.started = false;
+          }
+          if(this.command_requester.timeoutId != -1){
+            window.clearTimeout(this.command_requester.timeoutId);
+            this.command_requester.started = false;
+          }
+          if(!this.task_requester.started){
+            this.task_requester.requester.generateRequest();
+            this.task_requester.started = true;
+          }
+        },
+        expandTask: function (e) {
+          var model = e.model;
+          console.log(e.model)
+          this.command_requester.requester.url = "http://10.1.0.100:8080/jobs/"+model.job.id+"/tasks/"+model.task.id+"/commands";
+          this.command_requester.requester.params = {jobid: model.job.id, taskid: model.task.id};
+          var job_index = this._idToIndex(this.task_tree, model.job.id);
+          for(var task in this.task_tree[job_index].tasks){
+            this.set('task_tree.'+job_index+'.tasks.'+task+'.commands', []);
+          }
+          if(this.command_requester.timeoutId != -1){
+            window.clearTimeout(this.command_requester.timeoutId);
+            this.command_requester.started = false;
+          }
+          console.log(this.command_requester.requester.url)
+          if(!this.command_requester.started){
+            this.command_requester.requester.generateRequest();
+            this.command_requester.started = true;
+          }
         }
       });
     })();

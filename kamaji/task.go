@@ -6,6 +6,7 @@ import (
     "github.com/looplab/fsm"
     "sync"
     "time"
+    "fmt"
 )
 
 type Task struct {
@@ -19,10 +20,11 @@ type Task struct {
     created  time.Time
     FSM      *fsm.FSM
     priority int
+    LicenseRequirements []string
 }
 
 // NewTask create a new Task struct, generates a uuid for it and returns the task.
-func NewTask(name string, job *Job) *Task {
+func NewTask(name string, job *Job, licenses []string) *Task {
     t := new(Task)
     t.ID = uuid.NewRandom()
     t.Name = name
@@ -35,6 +37,8 @@ func NewTask(name string, job *Job) *Task {
     if job != nil {
         job.Children = append(job.Children, t)
     }
+    t.LicenseRequirements = licenses
+    fmt.Println("Lic Req: ", licenses)
     t.FSM = fsm.NewFSM(
         t.State.S(),
         fsm.Events{

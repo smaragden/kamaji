@@ -6,6 +6,7 @@ import (
     "sync"
     "time"
     "github.com/smaragden/kamaji/kamaji/proto"
+    "fmt"
 )
 
 var CommandEvent chan *proto_msg.KamajiMessage
@@ -123,12 +124,14 @@ func (tm *TaskManager) commandProvider() {
             time.Sleep(time.Millisecond * 100)
             continue
         }
-        command := readyCommands[0]
-        err := command.FSM.Event("assign")
-        if err != nil {
-            log.WithField("module", "taskmanager").Error(err)
+        for _, command := range readyCommands {
+            fmt.Println("Assigning Next Command: ", command.Task.Name, ", ", command.Name)
+            err := command.FSM.Event("assign")
+            if err != nil {
+                log.WithField("module", "taskmanager").Error(err)
+            }
+            tm.NextCommand <- command
         }
-        tm.NextCommand <- command
     }
 }
 

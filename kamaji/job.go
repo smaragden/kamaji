@@ -21,7 +21,6 @@ type Job struct {
     FSM         *fsm.FSM
     priority    int
     index       int
-    ChangeState chan string
 }
 
 // NewJob create a new Job struct, generates a uuid for it and returns the job.
@@ -47,24 +46,19 @@ func NewJob(name string) *Job {
             "after_event": func(e *fsm.Event) { j.afterEvent(e) },
         },
     )
-    j.ChangeState = make(chan string)
-    go j.stateChanger()
     return j
 }
 
-
-func (j *Job) stateChanger() {
-    for {
-        state := <-j.ChangeState
-        //if j.FSM.Cannot(state) {
-        //	continue
-        //}
-        err := j.FSM.Event(state)
-        if err != nil {
-            log.WithFields(log.Fields{"module": "nodemanager", "fuction": "stateChanger", "job": j.ID}).Error(err)
-        }
+// Synchronous state changer. This method should almost always be called when you want to change state.
+func (j *Job) ChangeState(state string) {
+    j.Lock()
+    defer j.Unlock()
+    err := j.FSM.Event(state)
+    if err != nil {
+        log.WithFields(log.Fields{"module": "job", "fuction": "ChangeState", "node": j.Name}).Fatal(err)
     }
 }
+
 
 func (j *Job) afterEvent(e *fsm.Event) {
     j.State = StateFromString(e.Dst)

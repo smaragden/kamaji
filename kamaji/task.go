@@ -53,6 +53,17 @@ func NewTask(name string, job *Job, licenses []string) *Task {
     return t
 }
 
+// Synchronous state changer. This method should almost always be called when you want to change state.
+func (t *Task) ChangeState(state string) {
+    t.Lock()
+    defer t.Unlock()
+    err := t.FSM.Event(state)
+    if err != nil {
+        log.WithFields(log.Fields{"module": "task", "fuction": "ChangeState", "task": t.Name}).Fatal(err)
+    }
+}
+
+
 func (t *Task) afterEvent(e *fsm.Event) {
     t.State = StateFromString(e.Dst)
     log.WithFields(log.Fields{

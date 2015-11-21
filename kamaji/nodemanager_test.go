@@ -27,7 +27,7 @@ func client(t *testing.T, fall bool, port string) {
 
 // Test Bringing up 100 nodes and then stop the nodemanager.
 func TestNodeManager(t *testing.T) {
-    port := 1314
+    port := 1414
     numClients := 100
     nm := kamaji.NewNodeManager("", port)
     go nm.Start()
@@ -47,7 +47,7 @@ func TestNodeManager(t *testing.T) {
 /*
 // Test Bringing up 100 nodes and then stop the nodemanager.
 func TestNodeManagerStop(t *testing.T) {
-    port := 1315
+    port := 1415
     numClients := 100
     nm := kamaji.NewNodeManager("", port)
     go nm.Start()
@@ -68,7 +68,7 @@ func TestNodeManagerStop(t *testing.T) {
 // Test Bringing up 100 nodes and let them exit, then stop the nodemanager.
 func TestNodeManagerFallthrough(t *testing.T) {
     numClients := 100
-    port := 1316
+    port := 1416
     nm := kamaji.NewNodeManager("", port)
     go nm.Start()
     time.Sleep(time.Millisecond * 10)

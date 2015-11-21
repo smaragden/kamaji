@@ -60,7 +60,7 @@ func (c *Command) ChangeState(state string) {
     defer c.Unlock()
     err := c.FSM.Event(state)
     if err != nil {
-        log.WithFields(log.Fields{"module": "command", "fuction": "stateChanger", "node": c.Name}).Fatal(err)
+        log.WithFields(log.Fields{"module": "command", "fuction": "ChangeState", "node": c.Name}).Fatal(err)
     }
 }
 

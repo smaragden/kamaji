@@ -9,7 +9,7 @@ import (
 )
 
 func changeState(job *kamaji.Job, state string, t *testing.T, wg *sync.WaitGroup) {
-    job.ChangeState <- state
+    job.ChangeState(state)
     wg.Done()
 }
 func TestJobState(t *testing.T) {
@@ -19,6 +19,7 @@ func TestJobState(t *testing.T) {
     var jobs []*kamaji.Job
     for i := 1; i < job_count + 1; i++ {
         job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
+        job.SetPrio(10)
         for j := 0; j < task_count; j++ {
             task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job, []string{})
             for k := 0; k < command_count; k++ {
@@ -31,6 +32,9 @@ func TestJobState(t *testing.T) {
     var wg sync.WaitGroup
     for _, state := range stateSequence {
         for _, job := range jobs {
+            if job.GetPrio() != 10 {
+                t.Logf("Prio Expected: 10 got %d", job.GetPrio())
+            }
             wg.Add(1)
             go changeState(job, state, t, &wg)
         }

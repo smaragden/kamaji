@@ -160,3 +160,20 @@ func TestTaskManagerSortInterface(t *testing.T) {
 		t.Logf(job.Name)
 	}
 }
+
+func TestTaskManagerGetById(t *testing.T) {
+	tm := kamaji.NewTaskManager()
+	job := kamaji.NewJob("JOB")
+	task := kamaji.NewTask("TASK", job, []string{})
+	command := kamaji.NewCommand("1", task)
+	tm.AddJob(job)
+	q_job := tm.GetJobFromId(job.ID.String())
+	if q_job.ID.String() != job.ID.String(){
+		t.Logf("Expected %s, got %s", job.ID, q_job.ID)
+	}
+
+	q_cmd := tm.GetCommandsFromId(command.ID.String())
+	if q_cmd.ID.String() != command.ID.String(){
+		t.Logf("Expected %s, got %s", command.ID, q_cmd.ID)
+	}
+}

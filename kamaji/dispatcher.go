@@ -60,7 +60,7 @@ func (d *Dispatcher) Start() {
                         return
                     case command := <-d.tm.NextCommand:
                         // Get license
-                        licenses, err := d.lm.matchRequirements(command.Task.LicenseRequirements)
+                        licenses, err := d.lm.MatchRequirements(command.Task.LicenseRequirements)
                         if err != nil{
                             continue DispatchCommand
                         }

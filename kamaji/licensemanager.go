@@ -13,6 +13,7 @@ type License struct {
 
 func NewLicense(name string, count uint16) *License {
 	l := new(License)
+	l.Name = name
 	l.Count = count
 	l.Queue = make(chan bool, count)
 	for i := uint16(0); i < count; i++ {
@@ -97,7 +98,7 @@ func (lm *LicenseManager) Available(name string) uint16 {
 	return lm.Licenses[name].Available()
 }
 
-func (lm *LicenseManager) matchRequirements(licenses []string) ([]*License, error){
+func (lm *LicenseManager) MatchRequirements(licenses []string) ([]*License, error){
 	// First check if we got available licenses
 	aquired_licenses := make([]*License, len(licenses))
 	for i, lic := range licenses {

@@ -60,3 +60,37 @@ func TestLicenseManageSync(t *testing.T) {
 		t.Errorf("Expected: %d, got: %d", licenses, lm.Available("maya"))
 	}
 }
+
+func TestLicenseManageMulti(t *testing.T) {
+	lm := kamaji.NewLicenseManager()
+	lm.AddLicense("maya", 2)
+	lm.AddLicense("arnold", 2)
+	lm.AddLicense("nuke", 2)
+	lics, err := lm.MatchRequirements([]string{"maya","arnold","nuke"})
+	if err != nil {
+		t.Error(err)
+	}
+	if lm.Available("maya") != 1 {
+		t.Errorf("Expected: 1, got: %d", lm.Available("maya"))
+	}
+	if lm.Available("arnold") != 1 {
+		t.Errorf("Expected: 1, got: %d", lm.Available("arnold"))
+	}
+	if lm.Available("nuke") != 1 {
+		t.Errorf("Expected: 1, got: %d", lm.Available("nuke"))
+	}
+	if lics[0].Name != "maya"{
+		t.Errorf("Expected: maya, got: %s", lics[0].Name)
+	}
+	if lics[1].Name != "arnold"{
+		t.Errorf("Expected: arnold, got: %s", lics[1].Name)
+	}
+	if lics[2].Name != "nuke"{
+		t.Errorf("Expected: nuke, got: %s", lics[2].Name)
+	}
+	lics, _ = lm.MatchRequirements([]string{"maya","arnold","nuke"})
+	lics, err = lm.MatchRequirements([]string{"maya","arnold","nuke"})
+	if err == nil {
+		t.Logf("I expected an error here.")
+	}
+}

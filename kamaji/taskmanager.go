@@ -77,7 +77,7 @@ func (tm *TaskManager) GetJobFromId(id string) *Job {
     return nil
 }
 
-func (tm *TaskManager) getCommandsFromId(id string) *Command {
+func (tm *TaskManager) GetCommandsFromId(id string) *Command {
     for _, job := range tm.Jobs {
         if job.State != STOPPED {
             for _, task := range job.GetTasks() {

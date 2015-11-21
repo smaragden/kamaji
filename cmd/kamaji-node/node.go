@@ -1,22 +1,29 @@
 package main
 
 import (
+    "code.google.com/p/go-uuid/uuid"
     "github.com/smaragden/kamaji/kamaji"
+//"bufio"
     "fmt"
     log "github.com/Sirupsen/logrus"
     "github.com/docopt/docopt-go"
     "github.com/golang/protobuf/proto"
     "net"
-    "os"
+    "strconv"
+    "sync"
+    "time"
+    "github.com/smaragden/kamaji/kamaji/proto"
+    "math/rand"
 )
 
-type Node struct {
+type ClientConn struct {
     *kamaji.Client
+    ID     uuid.UUID
     Name   string
-    sender chan *kamaji.KamajiMessage
+    sender chan *proto_msg.KamajiMessage
 }
 
-func (c *Node) messageSender() {
+func (c *ClientConn) messageSender() {
     for {
         for {
             message := <-c.sender
@@ -34,29 +41,33 @@ func (c *Node) messageSender() {
     }
 }
 
-func doWork(client *Node, message *kamaji.KamajiMessage) {
-    response := &kamaji.KamajiMessage{
-        Action: kamaji.KamajiMessage_STATUS_UPDATE.Enum(),
-        Entity: kamaji.KamajiMessage_COMMAND.Enum(),
+func doWork(client *ClientConn, message *proto_msg.KamajiMessage) {
+    job_time := time.Duration(rand.Intn(10)*1e9)
+    fmt.Println("Doing Work Started: , for %q", message.GetId(), job_time)
+    time.Sleep(job_time)
+    fmt.Println("Doing Work Done: ", message.GetId())
+    response := &proto_msg.KamajiMessage{
+        Action: proto_msg.KamajiMessage_STATUS_UPDATE.Enum(),
+        Entity: proto_msg.KamajiMessage_COMMAND.Enum(),
         Id:     message.Id,
-        Statusupdate: &kamaji.KamajiMessage_StatusUpdate{
+        Statusupdate: &proto_msg.KamajiMessage_StatusUpdate{
             Destination: proto.Int32(int32(kamaji.DONE)),
         },
     }
     client.sender <- response
 }
 
-func handleClientMessage(client *Node, message *kamaji.KamajiMessage) {
+func handleClientMessage(client *ClientConn, message *proto_msg.KamajiMessage) {
     switch message.GetAction() {
-    case kamaji.KamajiMessage_STATUS_UPDATE:
+    case proto_msg.KamajiMessage_STATUS_UPDATE:
         status := message.GetStatusupdate()
-        fmt.Println(kamaji.State(status.GetDestination()).S())
+        fmt.Println("Got Node status update request: ", kamaji.State(status.GetDestination()).S())
 
-        response := &kamaji.KamajiMessage{
-            Action: kamaji.KamajiMessage_STATUS_UPDATE.Enum(),
-            Entity: kamaji.KamajiMessage_NODE.Enum(),
-            Statusupdate: &kamaji.KamajiMessage_StatusUpdate{
-                Destination: proto.Int32(int32(kamaji.READY)),
+        response := &proto_msg.KamajiMessage{
+            Action: proto_msg.KamajiMessage_STATUS_UPDATE.Enum(),
+            Entity: proto_msg.KamajiMessage_NODE.Enum(),
+            Statusupdate: &proto_msg.KamajiMessage_StatusUpdate{
+                Destination: proto.Int32(int32(kamaji.State(status.GetDestination()))),
                 Name: proto.String(client.Name),
             },
         }
@@ -65,79 +76,88 @@ func handleClientMessage(client *Node, message *kamaji.KamajiMessage) {
 
 }
 
-func handleCommandMessage(client *Node, message *kamaji.KamajiMessage) {
+func handleCommandMessage(client *ClientConn, message *proto_msg.KamajiMessage) {
     switch message.GetAction() {
-    case kamaji.KamajiMessage_ASSIGN:
-        response := &kamaji.KamajiMessage{
-            Action: kamaji.KamajiMessage_STATUS_UPDATE.Enum(),
-            Entity: kamaji.KamajiMessage_NODE.Enum(),
-            Statusupdate: &kamaji.KamajiMessage_StatusUpdate{
+    case proto_msg.KamajiMessage_ASSIGN:
+        response := &proto_msg.KamajiMessage{
+            Action: proto_msg.KamajiMessage_STATUS_UPDATE.Enum(),
+            Entity: proto_msg.KamajiMessage_NODE.Enum(),
+            Statusupdate: &proto_msg.KamajiMessage_StatusUpdate{
                 Destination: proto.Int32(int32(kamaji.WORKING)),
             },
         }
+        fmt.Println("Send Node status update request: ", kamaji.WORKING.S(), ", ", client.ID)
         client.sender <- response
         go doWork(client, message)
     }
 }
 
-func handleMessage(client *Node, message *kamaji.KamajiMessage) {
+func handleMessage(client *ClientConn, message *proto_msg.KamajiMessage) {
     switch message.GetEntity() {
-    case kamaji.KamajiMessage_NODE:
+    case proto_msg.KamajiMessage_NODE:
         handleClientMessage(client, message)
-    case kamaji.KamajiMessage_COMMAND:
+    case proto_msg.KamajiMessage_COMMAND:
         handleCommandMessage(client, message)
     }
 }
 
-func main() {
-    usage := `Kamaji Client Spawner.
-
-Usage:
-  kamaji-node <server> [-p <port>] [-n <name>]
-  kamaji-node (-h | --help | --version)
-
-Options:
-  -p, --port=<port>  	Port. [default: 1314]
-  -n, --name=<name>     Alternative name to use for this node.
-  -h, --help            Show this screen.
-  -v, --verbose			Verbose output.`
-    arguments, err := docopt.Parse(usage, nil, true, "Kamaji Client Spawner", false)
-    if err != nil {
-        fmt.Println(err)
-    }
-    fmt.Printf("%+v\n", arguments)
-    conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", arguments["<server>"], arguments["--port"]))
+func cli(cn int, wg *sync.WaitGroup) {
+    defer wg.Done()
+    //time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
+    conn, err := net.Dial("tcp", "127.0.0.1:1314")
     if err != nil {
         fmt.Println("Error!")
         return
     }
     defer conn.Close()
-    clientConn := new(Node)
+    clientConn := new(ClientConn)
     clientConn.Client = kamaji.NewClient(conn)
-    name, ok := arguments["name"]
-    if ok == true && name != nil {
-        clientConn.Name = name.(string)
-    }else {
-        hostname, err := os.Hostname()
-        if err == nil {
-            clientConn.Name = hostname
-        }
-    }
-    fmt.Printf("Name: %s\n", clientConn.Name)
-    clientConn.sender = make(chan *kamaji.KamajiMessage)
+    clientConn.ID = uuid.NewRandom()
+    clientConn.Name = clientConn.ID.String()
+    clientConn.Name = fmt.Sprintf("node%03d.test.now", cn)
+    clientConn.sender = make(chan *proto_msg.KamajiMessage)
     go clientConn.messageSender()
+    //go reportStats(clientConn)
     for {
         tmp, err := clientConn.ReadMessage()
         if err != nil {
             break
         }
-        message := &kamaji.KamajiMessage{}
+        message := &proto_msg.KamajiMessage{}
         err = proto.Unmarshal(tmp, message)
         if err != nil {
             fmt.Println(err)
             break
         }
         handleMessage(clientConn, message)
+    }
+    fmt.Println("Exiting Client Loop.")
+}
+
+func main() {
+    usage := `Kamaji Client Spawner.
+
+Usage:
+  client_spawner [-n=5]
+
+Options:
+  -n --num_clients=N  Number of clients. [default: 5]
+  -h --help                 Show this screen.`
+    arguments, err := docopt.Parse(usage, nil, true, "Kamaji Client Spawner", false)
+    if err != nil {
+        fmt.Println(err)
+    }
+    client_count, _ := strconv.Atoi(arguments["--num_clients"].(string))
+    for {
+        fmt.Println("Starting: ", client_count, " clients.")
+        var wg sync.WaitGroup
+        wg.Add(client_count)
+        for i := 0; i < client_count; i++ {
+            go cli(i, &wg)
+            time.Sleep(time.Millisecond * 2)
+        }
+        wg.Wait()
+        time.Sleep(time.Second * 3)
     }
     fmt.Println("Exiting")
 }

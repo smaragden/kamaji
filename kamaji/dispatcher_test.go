@@ -24,7 +24,7 @@ type ClientConn struct {
 func TestDispatcher(t *testing.T) {
     fmt.Println("Starting")
     lm := kamaji.NewLicenseManager()
-    nm := kamaji.NewNodeManager("ClientManager", "", 1314)
+    nm := kamaji.NewNodeManager("", 6666)
     go nm.Start()
     tm := kamaji.NewTaskManager()
     d := kamaji.NewDispatcher(lm, nm, tm)
@@ -34,7 +34,7 @@ func TestDispatcher(t *testing.T) {
     for i := 0; i < job_count; i++ {
         job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
         for j := 0; j < task_count; j++ {
-            task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job)
+            task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job, []string{})
             for k := 0; k < command_count; k++ {
                 _ = kamaji.NewCommand(fmt.Sprintf("Command %d", k), task)
             }
@@ -57,7 +57,7 @@ func TestDispatcher(t *testing.T) {
 }
 
 func cli(cn int, quit chan bool) {
-    conn, err := net.Dial("tcp", "127.0.0.1:1314")
+    conn, err := net.Dial("tcp", "127.0.0.1:6666")
     if err != nil {
         fmt.Println("Error!")
         return

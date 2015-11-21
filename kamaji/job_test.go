@@ -20,7 +20,7 @@ func TestJobState(t *testing.T) {
     for i := 1; i < job_count + 1; i++ {
         job := kamaji.NewJob(fmt.Sprintf("Job %d", i))
         for j := 0; j < task_count; j++ {
-            task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job)
+            task := kamaji.NewTask(fmt.Sprintf("Task %d", j), job, []string{})
             for k := 0; k < command_count; k++ {
                 _ = kamaji.NewCommand(fmt.Sprintf("Command %d", k), task)
             }

@@ -60,8 +60,10 @@ func NewNode(conn net.Conn) *Node {
     n.Receive = make(chan *proto_msg.KamajiMessage)
     n.done = make(chan bool)
     n.waitGroup = &sync.WaitGroup{}
-    go n.messageTransmitter()
-    go n.messageReciever()
+    if n.Conn != nil {
+        go n.messageTransmitter()
+        go n.messageReciever()
+    }
     return n
 }
 

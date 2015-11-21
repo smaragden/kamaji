@@ -65,20 +65,6 @@ func (d *Dispatcher) Start() {
                             continue DispatchCommand
                         }
                         command.Licenses = licenses
-                        /*
-                        for _, lic := range command.Task.LicenseRequirements {
-                            if !d.lm.Borrow(lic) {
-                                // Return already acquired licenses
-                                for _, c_lic := range command.Licenses {
-                                    c_lic.Return()
-                                }
-                                command.Licenses = command.Licenses[:0]
-                                continue DispatchCommand
-                            }else {
-                                command.Licenses = append(command.Licenses, d.lm.Licenses[lic])
-                            }
-                        }
-                        */
                         command.ChangeState("assign")
                         command.ChangeState("start")
                         err = node.assignCommand(command)

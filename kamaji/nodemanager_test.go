@@ -34,12 +34,12 @@ func TestNodeManager(t *testing.T) {
     time.Sleep(time.Millisecond * 10)
     for i := 0; i < numClients; i++{
         go client(t, false, strconv.Itoa(port))
+        time.Sleep(time.Millisecond * 5)
     }
     for {
         if len(nm.Nodes) == numClients{
-            return
+            break
         }
-        time.Sleep(time.Millisecond * 5)
     }
     nm.Stop()
 }

@@ -4,15 +4,10 @@ import (
     log "github.com/Sirupsen/logrus"
     "time"
     "sync"
-    "fmt"
+    //"fmt"
 )
 
-func init() {
-    level, err := log.ParseLevel(Config.Logging.Dispatcher)
-    if err == nil {
-        log.SetLevel(level)
-    }
-}
+var contextLogger *log.Entry
 
 // Dispatcher is the orchestrator of kamaji. The dispatcher is using the other managers to combine resources to
 // create a task to assign to a Node.
@@ -41,82 +36,78 @@ func (d *Dispatcher) Start() {
     d.waitGroup.Add(1)
     defer d.waitGroup.Done()
     log.WithFields(log.Fields{
-        "module":  "dispatcher",
         "action":  "start",
     }).Info("Starting Dispatcher.")
-    Dispatch:
-        for {
-            log.WithField("module", "dispatcher").Debug("Waiting for node")
-            select {
-            case <-d.done:
-                return
-            case node := <-d.nm.NextNode:
-                {
-                    if node == nil {
-                        time.Sleep(time.Millisecond * 1000)
-                        continue
-                    }
-                    node.ChangeState("assign")
-                    log.WithField("module", "dispatcher").Debug("Waiting for command")
+    DispatchNode:
+    for {
+        log.Debug("Waiting for node")
+        select {
+        case <-d.done:
+            return
+        case node := <-d.nm.NextNode:
+            {
+                if node == nil {
+                    time.Sleep(time.Millisecond * 1000)
+                    continue
+                }
+                node.ChangeState("assign")
+                log.Debug("Waiting for command")
+                DispatchCommand:
+                for {
                     select {
                     case <-d.done:
+                    node.ChangeState("ready")
                         return
                     case command := <-d.tm.NextCommand:
-                        log.WithFields(log.Fields{
-                            "module":  "dispatcher",
-                            "job":     command.Task.Job.Name,
-                            "task":    command.Task.Name,
-                            "command": command.Name,
-                            "node":  node.Name,
-                        }).Debug("Dispatch Task")
                         // Get license
-                        fmt.Println("License Requirements: ", command.Task.LicenseRequirements )
+                        licenses, err := d.lm.matchRequirements(command.Task.LicenseRequirements)
+                        if err != nil{
+                            continue DispatchCommand
+                        }
+                        command.Licenses = licenses
+                        /*
                         for _, lic := range command.Task.LicenseRequirements {
-                            lic_count, err := d.lm.Borrow(lic)
-                            if err != nil {
+                            if !d.lm.Borrow(lic) {
                                 // Return already acquired licenses
-                                LicenseReturner <- command.Licenses
-                                log.WithFields(log.Fields{
-                                    "module":  "dispatcher",
-                                    "command": command.Name,
-                                    "node":  node.Name,
-                                    "action":  "license query",
-                                    "lic count": lic_count,
-                                }).Warning(err)
-                                err := command.FSM.Event("ready")
-                                if err != nil {
-                                    log.WithField("module", "dispatcher").Error(err)
+                                for _, c_lic := range command.Licenses {
+                                    c_lic.Return()
                                 }
-                                node.ChangeState("ready")
-                                continue Dispatch
-                            }else{
-                                command.Licenses = append(command.Licenses, lic)
+                                command.Licenses = command.Licenses[:0]
+                                continue DispatchCommand
+                            }else {
+                                command.Licenses = append(command.Licenses, d.lm.Licenses[lic])
                             }
                         }
-                        fmt.Println("Set Licenses: ", command.Licenses)
-                        err := command.FSM.Event("start")
-                        if err != nil {
-                            log.Fatal(err)
-                        }
+                        */
+                        command.ChangeState("assign")
+                        command.ChangeState("start")
                         err = node.assignCommand(command)
                         if err != nil {
                             log.WithFields(log.Fields{
-                                "module":  "dispatcher",
                                 "command": command.Name,
                                 "node":  node.Name,
                                 "action":  "assign",
                             }).Error(err)
                         }
+                        log.WithFields(log.Fields{
+                            "job":     command.Task.Job.Name,
+                            "task":    command.Task.Name,
+                            "command": command.Name,
+                            "node":  node.Name,
+                        }).Debug("Task Dispatched")
+                        d.tm.ResetProvider()
+                        continue DispatchNode
                     }
                 }
             }
         }
+    }
 }
 
 func (d *Dispatcher) Stop() {
     log.WithFields(log.Fields{
-        "module":  "dispatcher",
+        "module":  "taskmanager",
         "action":  "stop",
-    }).Info("Stopping Dispatcher.")
+    }).Info("Stopping Dispatcher")
     close(d.done)
 }

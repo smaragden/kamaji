@@ -6,8 +6,9 @@ import (
     "github.com/looplab/fsm"
     "sync"
     "time"
-    "fmt"
 )
+
+type Tasks []*Task
 
 type Task struct {
     sync.RWMutex
@@ -16,7 +17,7 @@ type Task struct {
     State    State
     Completion float32
     Job      *Job
-    Commands []*Command
+    Commands Commands
     created  time.Time
     FSM      *fsm.FSM
     priority int
@@ -38,7 +39,6 @@ func NewTask(name string, job *Job, licenses []string) *Task {
         job.Children = append(job.Children, t)
     }
     t.LicenseRequirements = licenses
-    fmt.Println("Lic Req: ", licenses)
     t.FSM = fsm.NewFSM(
         t.State.S(),
         fsm.Events{
@@ -67,10 +67,10 @@ func (t *Task) afterEvent(e *fsm.Event) {
     t.Job.calculateState()
 }
 
-func (t *Task) getCommands() []*Command {
+func (t *Task) getCommands() Commands {
     t.Lock()
     defer t.Unlock()
-    return append([]*Command(nil), t.Commands...)
+    return t.Commands
 }
 
 func (t *Task) GetCommandFromId(id string) *Command {
@@ -95,16 +95,22 @@ func (t *Task) calculateState() {
         }
     }
     t.Completion = completion/float32(len(t.Commands))
-    //if new_state != old_state {
-        t.State = new_state
-        log.WithFields(log.Fields{
-            "module":     "task",
-            "task":       t.Name,
-            "old_status": old_state,
-            "new_status": new_state,
-        }).Debug("Calculated new task state")
+    t.State = new_state
+    if t.Job != nil{
+        if new_state != old_state {
+            log.WithFields(log.Fields{
+                "module":     "task",
+                "task":       t.Name,
+                "old_status": old_state,
+                "new_status": new_state,
+            }).Debug("Calculated new task state")
+        }
         t.Job.calculateState()
-    //}
+    }
+}
+
+func (t *Task) SetPrio(prio int) {
+    t.priority = prio
 }
 
 func (t *Task) GetPrio() int {
@@ -113,4 +119,20 @@ func (t *Task) GetPrio() int {
 
 func (t *Task) GetCreated() time.Time {
     return t.created
+}
+
+// Sort Interface
+func (slice Tasks) Len() int {
+    return len(slice)
+}
+
+func (slice Tasks) Less(i, j int) bool {
+    if slice[i].priority==slice[j].priority{
+        return slice[i].created.UnixNano() < slice[j].created.UnixNano();
+    }
+    return slice[i].priority > slice[j].priority;
+}
+
+func (slice Tasks) Swap(i, j int) {
+    slice[i], slice[j] = slice[j], slice[i]
 }

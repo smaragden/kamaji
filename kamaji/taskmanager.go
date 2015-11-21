@@ -4,33 +4,21 @@ import (
 //"code.google.com/p/go-uuid/uuid"
     log "github.com/Sirupsen/logrus"
     "sync"
-    "time"
-    "github.com/smaragden/kamaji/kamaji/proto"
-    "fmt"
+    "sort"
 )
-
-var CommandEvent chan *proto_msg.KamajiMessage
-
-func init() {
-    level, err := log.ParseLevel(Config.Logging.Taskmanager)
-    if err == nil {
-        log.SetLevel(level)
-    }
-    CommandEvent = make(chan *proto_msg.KamajiMessage, 5)
-}
-
-type JobList []*Job
 
 type TaskManager struct {
     sync.RWMutex
-    Jobs        JobList
+    Jobs        Jobs
     NextCommand chan *Command
+    reset chan bool
 }
 
 func NewTaskManager() *TaskManager {
     log.Debug("Creating Taskmanager")
     tm := new(TaskManager)
     tm.NextCommand = make(chan *Command)
+    tm.reset = make(chan bool)
     return tm
 }
 
@@ -41,28 +29,39 @@ func (tm *TaskManager) Start() {
     }).Info("Starting Task Manager.")
 
     go tm.commandProvider()
-    go tm.taskEventReciever()
 }
 
 func (tm *TaskManager) Stop() {
     log.WithFields(log.Fields{
         "module":  "taskmanager",
         "action":  "stop",
-    }).Info("Stopping Task Manager.")
+    }).Info("Stopping Task Manager")
 }
 
-func (tm *TaskManager) taskEventReciever() {
-    for {
-        message := <-CommandEvent
-        command := tm.getCommandsFromId(message.GetId())
-        if command != nil {
-            err := command.FSM.Event("finish")
-            if err != nil {
-                log.Fatal(err)
-            }
+func (tm *TaskManager) ResetProvider() {
+    tm.reset <- true
+}
+
+func (tm *TaskManager) GetNumJobs() int {
+    return len(tm.Jobs)
+}
+
+func (tm *TaskManager) GetNumTasks() int {
+    num_tasks := 0
+    for _, job := range tm.Jobs {
+        num_tasks += len(job.Children)
+    }
+    return num_tasks
+}
+
+func (tm *TaskManager) GetNumCommands() int {
+    num_tasks := 0
+    for _, job := range tm.Jobs {
+        for _, task := range job.GetTasks() {
+            num_tasks += len(task.Commands)
         }
     }
-
+    return num_tasks
 }
 
 func (tm *TaskManager) taskSorter() {
@@ -98,13 +97,17 @@ func (tm *TaskManager) getCommandsFromId(id string) *Command {
 func (tm *TaskManager) getReadyCommands() []*Command {
     tm.Lock()
     defer tm.Unlock()
-    readyCommands := []*Command{}
-    OrderedBy(prio, created).Sort(tm.Jobs)
+    var readyCommands Commands
+    sort.Sort(tm.Jobs)
     for _, job := range tm.Jobs {
         if job.State != STOPPED {
-            for _, task := range job.GetTasks() {
+            tasks := job.GetTasks()
+            sort.Sort(tasks)
+            for _, task := range  tasks{
                 if task.State != STOPPED {
-                    for _, command := range task.getCommands() {
+                    commands := task.getCommands()
+                    sort.Sort(commands)
+                    for _, command := range commands{
                         if command.State == READY {
                             readyCommands = append(readyCommands, command)
                         }
@@ -117,20 +120,15 @@ func (tm *TaskManager) getReadyCommands() []*Command {
 }
 
 func (tm *TaskManager) commandProvider() {
+    Provider:
     for {
         readyCommands := tm.getReadyCommands()
-        // Sort the commands
-        if len(readyCommands) == 0 {
-            time.Sleep(time.Millisecond * 100)
-            continue
-        }
         for _, command := range readyCommands {
-            fmt.Println("Assigning Next Command: ", command.Task.Name, ", ", command.Name)
-            err := command.FSM.Event("assign")
-            if err != nil {
-                log.WithField("module", "taskmanager").Error(err)
+            select {
+            case tm.NextCommand <- command:
+            case <-tm.reset:
+                continue Provider
             }
-            tm.NextCommand <- command
         }
     }
 }

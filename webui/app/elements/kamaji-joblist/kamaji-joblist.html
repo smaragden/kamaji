@@ -7,6 +7,7 @@ The complete set of contributors may be found at http://polymer.github.io/CONTRI
 Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
 -->
+<link rel="import" href="../../bower_components/polymer/polymer.html">
 <link rel="import" href="../../bower_components/byutv-jsonp/byutv-jsonp.html">
 
 <dom-module id="kamaji-joblist">
@@ -24,6 +25,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         height: 1px;
         background-color: darkgray;
       }
+      paper-progress{
+        width: inherit;
+        --paper-progress-transition-delay: 0.08s;
+      }
+      .ready{
+        --paper-progress-active-color: #3f6bff;
+      }
+      .working{
+        --paper-progress-active-color: #652080;
+      }
+      .done{
+        --paper-progress-active-color: #2d8018;
+      }
     </style>
     <byutv-jsonp id="job_requester"
                  url="http://10.1.0.100:8080/jobs"
@@ -39,35 +53,36 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                  debounce-duration="300"></byutv-jsonp>
     <paper-listbox id="job_list">
     <template is="dom-repeat" items="{{task_tree}}" as="job">
-      <paper-item>
+      <paper-item id="[[job.id]]">
         <div class="task">
           <div>
-            <paper-icon-button id="[[job.id]]" icon="menu" on-click="expandJob">Tasks</paper-icon-button>[[job.name]]</div>
+            <paper-icon-button icon="menu" on-click="expandJob">Tasks</paper-icon-button>[[job.name]] [[job.state]] [[job.completion]]</div>
           <div>
-            <paper-progress style="width: inherit" max=1 step=0.01 value="[[job.completion]]"></paper-progress>
+            <paper-progress id="{{job.id}}-p" class$="{{job.state}}" max=1 step=0.01 value="[[job.completion]]"></paper-progress>
           </div>
           <paper-listbox multi>
-            <template is="dom-repeat" items="{{job.tasks}}" as="task" bind={{job as jobbet}}>
-              <paper-item>
+            <template is="dom-repeat" items="{{job.tasks}}" as="task">
+              <paper-item id="[[task.id]]">
                 <div class="task">
                   <div>
-                    <paper-icon-button id="[[task.id]]" jobid=[[job.id]] icon="menu" on-click="expandTask">Commands</paper-icon-button>[[task.name]]</div>
+                    <paper-icon-button jobid=[[job.id]] icon="menu" on-click="expandTask">Commands</paper-icon-button>[[task.name]] [[task.state]] [[task.completion]]</div>
                   <div>
-                  <div>
-                    <paper-progress style="width: inherit" max=1 step=0.01 value="[[task.completion]]"></paper-progress>
-                  </div>
-                  <paper-listbox multi>
-                    <template is="dom-repeat" items="{{task.commands}}" as="command">
-                      <paper-item>
-                        <div class="task">
-                          <div>[[command.name]]</div>
-                          <div>
-                            <paper-progress style="width: inherit" max=1 step=0.01 value="[[command.completion]]"></paper-progress>
+                    <div>
+                      <paper-progress class$="[[task.state]]" max=1 step=0.01 value="[[task.completion]]"></paper-progress>
+                    </div>
+                    <paper-listbox multi>
+                      <template is="dom-repeat" items="{{task.commands}}" as="command">
+                        <paper-item id="[[command.id]]">
+                          <div class="task">
+                            <div>[[command.name]]  [[command.state]] [[command.completion]]</div>
+                            <div>
+                              <paper-progress class$="[[command.state]]" max=1 step=0.01 value="[[command.completion]]"></paper-progress>
+                            </div>
                           </div>
-                        </div>
-                      </paper-item>
-                    </template>
-                  </paper-listbox>
+                        </paper-item>
+                      </template>
+                    </paper-listbox>
+                  </div>
                 </div>
               </paper-item>
             </template>
@@ -119,7 +134,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           this.command_requester.requester = this.$.command_requester;
         },
         handleJobResponse: function (request) {
-          console.log("Got job Request.")
           var jobResponse = request.detail;
           for (var key in jobResponse) {
             var j = jobResponse[key];
@@ -132,7 +146,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           }, 1000, this);
         },
         handleTaskResponse: function (request) {
-          console.log("Got task Request.")
           var job_id = request.target.params.jobid;
           var job_index = this._idToIndex(this.task_tree, job_id);
           var taskResponse = request.detail;
@@ -147,8 +160,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           }, 1000, this);
         },
         handleCommandResponse: function (request) {
-          console.log("Got Commands")
-          console.log(request)
           var job_id = request.target.params.jobid;
           var task_id = request.target.params.taskid;
           var job_index = this._idToIndex(this.task_tree, job_id);
@@ -177,11 +188,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           if(index==-1){
             this.push(listname, task);
           }else{
+            this.set(listname+'.'+index+'.state', task.state);
             this.set(listname+'.'+index+'.name', task.name);
             this.set(listname+'.'+index+'.id', task.id);
-            this.set(listname+'.'+index+'.state', task.state);
             this.set(listname+'.'+index+'.completion', task.completion);
           }
+          this.updateStyles();
         },
         expandJob: function (e) {
           var model = e.model;

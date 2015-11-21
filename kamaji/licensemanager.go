@@ -1,138 +1,115 @@
 package kamaji
 
 import (
-    "errors"
-    "bytes"
-    "fmt"
-    "sync"
-    log "github.com/Sirupsen/logrus"
+	"errors"
+	"fmt"
 )
 
-var LicenseReturner chan []string
-
-func init() {
-    level, err := log.ParseLevel(Config.Logging.Licensemanager)
-    if err == nil {
-        log.SetLevel(level)
-    }
-    LicenseReturner = make(chan []string)
-}
-type Application struct {
-    sync.RWMutex
-    name      string
-    count     int
-    available int
+type License struct {
+	Name string
+	Count uint16
+	Queue chan bool
 }
 
-func NewApplication(name string, count int) *Application {
-    a := new(Application)
-    a.name = name
-    a.count = count
-    a.available = count
-    return a
+func NewLicense(name string, count uint16) *License {
+	l := new(License)
+	l.Count = count
+	l.Queue = make(chan bool, count)
+	for i := uint16(0); i < count; i++ {
+		l.Queue <- true
+	}
+	return l
 }
 
-func (a *Application) Borrow() (int, error) {
-    if a.available > 0 {
-        a.available--
-        return 1, nil
-    }
-    return 0, errors.New("No license available!")
+// Borrow a license and return true if succeeded and false if failed.
+func (l *License) Borrow() bool {
+	select {
+	case res := <-l.Queue:
+		return res
+	//case <-time.After(time.Duration(1e6 * int64(Config.LicenseManager.Interval))):
+	default:
+		return false
+	}
 }
 
-func (a *Application) Return() (int, error) {
-    if a.available < a.count {
-        a.available++
-        return 1, nil
-    }
-    return 0, errors.New("Trying to return to many licenses!")
+// Return a license and return true if succeeded and false if failed.
+func (l *License) Return() bool {
+	select {
+	case l.Queue <- true:
+		return true
+	default:
+		return false
+	}
+}
+
+// Get available licenses
+func (l *License) Available() uint16 {
+	return uint16(len(l.Queue))
 }
 
 type LicenseManager struct {
-    Applications map[string]*Application
-
+	Licenses map[string]*License
 }
 
 func NewLicenseManager() *LicenseManager {
-    lm := new(LicenseManager)
-    lm.Applications = make(map[string]*Application)
-    go lm.licenseReturnerRoutine()
-    return lm
+	lm := new(LicenseManager)
+	lm.Licenses = make(map[string]*License)
+	return lm
 }
 
-func (lm LicenseManager) licenseReturnerRoutine() {
-    for {
-        lics := <- LicenseReturner
-        for _, lic := range lics{
-            fmt.Println("Returning License")
-            lm.Return(lic)
-        }
-    }
-}
-
-func (lm LicenseManager) lkey() string {
-    return "licenses"
-}
-
-func (lm LicenseManager) akey(app *Application) string {
-    var buffer bytes.Buffer
-    buffer.WriteString(lm.lkey())
-    buffer.WriteString(":")
-    buffer.WriteString(app.name)
-    return buffer.String()
-}
-
-func (lm LicenseManager) AddApplication(name string, count int) int {
-    _, ok := lm.Applications[name]
+func (lm *LicenseManager) AddLicense(name string, count uint16) error {
+	_, ok := lm.Licenses[name]
     if ok {
-        _ = fmt.Errorf("Application: %q already exists!", name)
-        return 0
+         return errors.New(fmt.Sprintf("License already exists: %s", name))
     }
-    lm.Applications[name] = NewApplication(name, count)
-    return count
+    lm.Licenses[name] = NewLicense(name, count)
+	return nil
 }
 
-func (lm LicenseManager) Borrow(name string) (int, error) {
-    app, ok := lm.Applications[name]
-    if !ok{
-        return 0, errors.New("No application exists!")
-    }
-    app.Lock()
-    n, err := app.Borrow()
-    app.Unlock()
-    return n, err
-
+// Borrow a license and return true if succeeded and false if failed.
+func (lm *LicenseManager) Borrow(name string) bool {
+	return lm.Licenses[name].Borrow()
 }
 
-func (lm LicenseManager) Return(name string) (int, error) {
-    app, ok := lm.Applications[name]
-    if !ok {
-        return 0, errors.New("No application exists!")
-    }
-    app.Lock()
-    n, err := app.Return()
-    app.Unlock()
-    return n, err
+// Borrow multiple licenses and return true if succeeded and false if failed.
+// We also return the licenses we already aquired if we fail
+func (lm *LicenseManager) borrowMultiple(names []string) bool {
+	var aquired_licenses []string
+	for _, name := range names {
+		ok := lm.Licenses[name].Borrow()
+		if !ok{
+			for _, lic := range aquired_licenses {
+				lm.Return(lic)
+			}
+			return false
+		}
+		aquired_licenses = append(aquired_licenses, name)
+	}
+	return true
 }
 
-func (lm LicenseManager) Status(name string) Application {
-    app, ok := lm.Applications[name]
-    if ok {
-        return *app
-    }
-    return *app
+// Return a license and return true if succeeded and false if failed.
+func (lm *LicenseManager) Return(name string) bool {
+	return lm.Licenses[name].Return()
 }
 
-func (nm LicenseManager) Start() {
-    log.WithFields(log.Fields{
-        "module":  "licensemanager",
-        "action":  "start",
-    }).Info("Starting License Manager.")
+func (lm *LicenseManager) Available(name string) uint16 {
+	return lm.Licenses[name].Available()
 }
 
-func (lm LicenseManager) Stop() {
-    log.WithFields(log.Fields{
-        "module":  "licencemanager",
-        "action":  "stop",
-    }).Info("Stopping License Manager.")
+func (lm *LicenseManager) matchRequirements(licenses []string) ([]*License, error){
+	// First check if we got available licenses
+	aquired_licenses := make([]*License, len(licenses))
+	for i, lic := range licenses {
+		if lm.Available(lic) == 0{
+			return nil, errors.New("Couldn't match requirements.")
+		}
+		aquired_licenses[i] = lm.Licenses[lic]
+	}
+	// Aquire the licenses
+	ok := lm.borrowMultiple(licenses)
+	if !ok {
+		return nil, errors.New("Couldn't aquire all licenses.")
+	}
+	return aquired_licenses, nil
 }

@@ -13,6 +13,7 @@ import (
     "sync"
     "time"
     "github.com/smaragden/kamaji/kamaji/proto"
+    "math/rand"
 )
 
 type ClientConn struct {
@@ -41,8 +42,9 @@ func (c *ClientConn) messageSender() {
 }
 
 func doWork(client *ClientConn, message *proto_msg.KamajiMessage) {
-    fmt.Println("Doing Work Started: ", message.GetId())
-    time.Sleep(time.Millisecond * 1000)
+    job_time := time.Duration(rand.Intn(10)*1e9)
+    fmt.Println("Doing Work Started: , for %q", message.GetId(), job_time)
+    time.Sleep(job_time)
     fmt.Println("Doing Work Done: ", message.GetId())
     response := &proto_msg.KamajiMessage{
         Action: proto_msg.KamajiMessage_STATUS_UPDATE.Enum(),

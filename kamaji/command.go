@@ -4,22 +4,23 @@ import (
     "code.google.com/p/go-uuid/uuid"
     log "github.com/Sirupsen/logrus"
     "github.com/looplab/fsm"
+    "sync"
+    "time"
 )
 
-func init() {
-    log.SetFormatter(&log.TextFormatter{FullTimestamp: true})
-}
-
-
+type Commands []*Command
 // Command represents the command that is going to be executed on the remote Node.
 type Command struct {
+    sync.RWMutex
     ID    uuid.UUID
     Name  string
     State State
     Completion float32
+    created  time.Time
+    priority int
     Task  *Task
     FSM   *fsm.FSM
-    Licenses []string
+    Licenses []*License
 }
 
 // Create a new Command instance and return it.
@@ -29,6 +30,8 @@ func NewCommand(name string, task *Task) *Command {
     c.Name = name
     c.State = UNKNOWN
     c.Completion = 0.0
+    c.created = time.Now()
+    c.priority = 0
     c.Task = task
     if task != nil {
         task.Commands = append(task.Commands, c)
@@ -51,10 +54,23 @@ func NewCommand(name string, task *Task) *Command {
     return c
 }
 
+// Synchronous state changer. This method should almost always be called when you want to change state.
+func (c *Command) ChangeState(state string) {
+    c.Lock()
+    defer c.Unlock()
+    err := c.FSM.Event(state)
+    if err != nil {
+        log.WithFields(log.Fields{"module": "command", "fuction": "stateChanger", "node": c.Name}).Fatal(err)
+    }
+}
+
 func (c *Command) finishCommand(e *fsm.Event) {
+    log.Info("Command Finish.")
     // Return licenses
-    LicenseReturner <- c.Licenses
-    c.Licenses = []string{}
+    for _, lic := range c.Licenses{
+        lic.Return()
+    }
+    c.Licenses = c.Licenses[:0]
     c.Completion = 1.0
 }
 
@@ -74,3 +90,31 @@ func (c *Command) afterEvent(e *fsm.Event) {
     }
 }
 
+
+func (c *Command) SetPrio(prio int) {
+    c.priority = prio
+}
+
+func (c *Command) GetPrio() int {
+    return c.priority
+}
+
+func (c *Command) GetCreated() time.Time {
+    return c.created
+}
+
+// Sort Interface
+func (slice Commands) Len() int {
+    return len(slice)
+}
+
+func (slice Commands) Less(i, j int) bool {
+    if slice[i].priority == slice[j].priority{
+        return slice[i].created.UnixNano() < slice[j].created.UnixNano();
+    }
+    return slice[i].priority > slice[j].priority;
+}
+
+func (slice Commands) Swap(i, j int) {
+    slice[i], slice[j] = slice[j], slice[i]
+}

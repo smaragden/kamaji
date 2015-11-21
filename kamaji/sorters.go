@@ -12,23 +12,23 @@ type SortableItem interface {
 
 
 func prio(c1, c2 SortableItem) bool {
-    return c1.GetPrio() < c2.GetPrio()
+    return c1.GetPrio() > c2.GetPrio()
 }
 
 func created(c1, c2 SortableItem) bool {
-    return c1.GetCreated().UnixNano() < c2.GetCreated().UnixNano()
+    return c1.GetCreated().UnixNano() > c2.GetCreated().UnixNano()
 }
 
 type lessFunc func(p1 SortableItem, p2 SortableItem) bool
 
 // multiSorter implements the Sort interface, sorting the changes within.
 type multiSorter struct {
-    jobs JobList
+    jobs []SortableItem
     less []lessFunc
 }
 
 // Sort sorts the argument slice according to the less functions passed to OrderedBy.
-func (ms *multiSorter) Sort(jobs JobList) {
+func (ms *multiSorter) Sort(jobs []SortableItem) {
     ms.jobs = jobs
     sort.Sort(ms)
 }

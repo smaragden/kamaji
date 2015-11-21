@@ -8,13 +8,7 @@ import (
     "time"
 )
 
-func init() {
-    level, err := log.ParseLevel(Config.Logging.Task)
-    if err == nil {
-        log.SetLevel(level)
-    }
-}
-
+type Jobs []*Job
 // Job is the structure that holds tasks.
 type Job struct {
     sync.RWMutex
@@ -22,7 +16,7 @@ type Job struct {
     Name        string
     State       State
     Completion float32
-    Children    []*Task
+    Children    Tasks
     created     time.Time
     FSM         *fsm.FSM
     priority    int
@@ -105,14 +99,18 @@ func (j *Job) GetPrio() int {
     return j.priority
 }
 
+func (j *Job) SetPrio(prio int) {
+    j.priority = prio
+}
+
 func (j *Job) GetCreated() time.Time {
     return j.created
 }
 
-func (j *Job) GetTasks() []*Task {
+func (j *Job) GetTasks() Tasks {
     j.Lock()
     defer j.Unlock()
-    return append([]*Task(nil), j.Children...)
+    return j.Children
 }
 
 func (j *Job) GetTaskFromId(id string) *Task {
@@ -124,4 +122,20 @@ func (j *Job) GetTaskFromId(id string) *Task {
         }
     }
     return nil
+}
+
+// Sort Interface
+func (slice Jobs) Len() int {
+    return len(slice)
+}
+
+func (slice Jobs) Less(i, j int) bool {
+    if slice[i].priority==slice[j].priority{
+        return slice[i].created.UnixNano() < slice[j].created.UnixNano();
+    }
+    return slice[i].priority > slice[j].priority;
+}
+
+func (slice Jobs) Swap(i, j int) {
+    slice[i], slice[j] = slice[j], slice[i]
 }

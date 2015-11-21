@@ -11,14 +11,9 @@ import (
     "sync"
     "github.com/smaragden/kamaji/kamaji/proto"
     "time"
+    "io"
+    "syscall"
 )
-
-func init() {
-    level, err := log.ParseLevel(Config.Logging.Nodemanager)
-    if err == nil {
-        log.SetLevel(level)
-    }
-}
 
 // Node represents a instance of a worker node. Most likely a separate machine.
 type Node struct {
@@ -91,42 +86,41 @@ func (n *Node) afterEvent(e *fsm.Event) {
 }
 
 // We close the message handlers (messageTransmitter, messageReciever) before entering the offline state.
-func (c *Node) beforeOffline(e *fsm.Event) {
-    close(c.done)
-    c.waitGroup.Wait()
+func (n *Node) beforeOffline(e *fsm.Event) {
+    close(n.done)
+    n.waitGroup.Wait()
 }
 
 // Close the nodes connection.
-func (c *Node) offlineNode(e *fsm.Event) {
-    c.Conn.Close()
-    // TODO: Handle stray jobs
+func (n *Node) offlineNode(e *fsm.Event) {
+    n.Conn.Close()
+    // TODO: Handle stray tasks
 }
 
 // Assign a command to this node and report to the client.
 // we add a reference to the command on this node to be able to track it later.
 func (n *Node) assignCommand(command *Command) error {
-    fmt.Println("ASSIGN!")
     message := &proto_msg.KamajiMessage{
         Action: proto_msg.KamajiMessage_ASSIGN.Enum(),
         Entity: proto_msg.KamajiMessage_COMMAND.Enum(),
         Id:     proto.String(command.ID.String()),
     }
     n.currentCommands = append(n.currentCommands, command)
-    log.WithFields(log.Fields{"module": "nodemanager", "client": n.Name, "command": command.Name}).Info("Assigning command to client.")
+    log.WithFields(log.Fields{"module": "nodemanager", "client": n.Name, "job": command.Task.Job.Name, "task": command.Task.Name, "command": command.Name}).Info("Assigning command to client.")
     n.Send <- message
     return nil
 }
 
 // Remove the command that was added in assignCommand.
-func (n *Node) removeCommand(command_id string) error {
+func (n *Node) removeCommand(command_id string) (*Command, error) {
     log.WithFields(log.Fields{"module": "nodemanager", "client": n.Name, "command": command_id}).Debug("Clean up command.")
-    for i, node_commands := range n.currentCommands {
-        if node_commands.ID.String() == command_id {
+    for i, node_command := range n.currentCommands {
+        if node_command.ID.String() == command_id {
             n.currentCommands = append(n.currentCommands[:i], n.currentCommands[i + 1:]...)
-            return nil
+            return node_command, nil
         }
     }
-    return errors.New("Couldn't find command on client.")
+    return nil, errors.New("Couldn't find command on client.")
 }
 
 // Send a request to the client that we want to update our state. The client will respond with the status it agrees with.
@@ -158,13 +152,14 @@ func (n *Node) messageTransmitter() {
                 fmt.Println(err)
                 continue
             }
-            n.SetDeadline(time.Now().Add(6e7)) //TODO: Find proper value, this affects the time to offline the node
+            n.SetDeadline(time.Now().Add(6e6)) //TODO: Find proper value, this affects the time to offline the node
             _, err = n.SendMessage(message_data)
             if err != nil {
                 if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
                     continue
                 }
                 log.WithFields(log.Fields{"module": "nodemanager", "function": "messageSender"}).Error(err)
+                return
             }
         case <-time.After(time.Millisecond * 10):
             continue
@@ -177,7 +172,7 @@ func (n *Node) messageReciever() {
     n.waitGroup.Add(1)
     defer n.waitGroup.Done()
     for {
-        n.SetDeadline(time.Now().Add(6e7)) //TODO: Find proper value, this affects the time to offline the node
+        n.SetDeadline(time.Now().Add(6e8)) //TODO: Find proper value, this affects the time to offline the node
         tmp, err := n.ReadMessage()
         if err != nil {
             select {
@@ -187,8 +182,13 @@ func (n *Node) messageReciever() {
                 if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
                     continue
                 }
-                fmt.Println("[messageReciever] Error reading message: ", n.Name, ", ", err)
+                if err != io.EOF {
+                    if opErr, _ := err.(*net.OpError); opErr.Err.Error() == syscall.ECONNRESET.Error() {
+                        log.WithFields(log.Fields{"module": "nodemanager", "function": "messageSender"}).Error("Suicide!")
+                    }
+                }
                 return
+
             }
         }
         message := &proto_msg.KamajiMessage{}

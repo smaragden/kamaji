@@ -10,6 +10,10 @@ type dispatcher struct {
     Port   int
 }
 
+type licenseManager struct {
+    Interval int // Interval in milliseconds between tries when no license is available
+}
+
 type database struct {
     Type string
     Host string
@@ -17,15 +21,12 @@ type database struct {
 }
 
 type logging struct {
-    Task           string
-    Dispatcher     string
-    Nodemanager    string
-    Taskmanager    string
-    Licensemanager string
+    Level string
 }
 
 type Configuration struct {
     Logging    logging `toml:"logging"`
+    LicenseManager licenseManager `toml:"licenseManager"`
     Dispatcher dispatcher `toml:"dispatcher"`
     Database   database `toml:"database"`
 }
@@ -36,20 +37,19 @@ var Config Configuration
 func init() {
     Config = Configuration{
         Logging:logging{
-            Task:"info",
-            Dispatcher:"info",
-            Nodemanager:"info",
-            Taskmanager:"info",
-            Licensemanager:"info",
+            Level: "info",
         },
         Dispatcher:dispatcher{
-            Listen:"0.0.0.0",
-            Port:1314,
+            Listen: "0.0.0.0",
+            Port: 1314,
+        },
+        LicenseManager:licenseManager{
+           Interval: 200,
         },
         Database:database{
-            Type:"sqlite",
-            Host:"localhost",
-            Port:0,
+            Type: "sqlite",
+            Host: "localhost",
+            Port: 0,
         },
     }
     if _, err := toml.DecodeFile("kamaji.conf", &Config); err != nil {

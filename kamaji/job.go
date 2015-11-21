@@ -1,7 +1,7 @@
 package kamaji
 
 import (
-    "code.google.com/p/go-uuid/uuid"
+    "github.com/pborman/uuid"
     log "github.com/Sirupsen/logrus"
     "github.com/looplab/fsm"
     "sync"
